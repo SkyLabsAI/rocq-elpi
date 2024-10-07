@@ -10,6 +10,6 @@
   (glob_files elpi.v.in))
  (action
   (with-stdout-to %{target}
-   (run coq_elpi_optcomp "%{coq:version.major}.%{coq:version.minor}" %{deps}))))
+   (run coq_elpi_optcomp "8.20" %{deps}))))
 
 ; (include_subdirs qualified)
