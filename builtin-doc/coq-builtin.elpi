@@ -1280,8 +1280,17 @@ external pred coq.hints.set-opaque i:constant, i:string, i:bool.
 % transparent (ff) in DB
 external pred coq.hints.opaque i:constant, i:string, o:bool.
 
-% [coq.hints.add-resolve GR DB Priority Pattern] Like Hint Resolve GR |
+% [coq.hints.add-resolve-hnf GR DB Priority Pattern] Like Hint Resolve GR |
 % Priority Pattern : DB.
+% Supported attributes:
+% - @local! (default is export)
+% - @global! (discouraged, may become deprecated)
+external pred coq.hints.add-resolve-hnf i:gref, i:string, i:int, i:term.
+
+% [coq.hints.add-resolve GR DB Priority Pattern] Almost like Hint Resolve GR
+% | Priority Pattern : DB. 
+% Never reduces the type of [GR]. See [coq.hints.add-resolve-hnf] for a
+% version that mimics `Hint Resolve` perfectly.
 % Supported attributes:
 % - @local! (default is export)
 % - @global! (discouraged, may become deprecated)
