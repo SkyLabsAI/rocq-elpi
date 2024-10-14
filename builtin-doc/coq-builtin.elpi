@@ -1399,7 +1399,7 @@ builtin func coq.hints.set-opaque constant, string, bool.
 % transparent (ff) in DB
 builtin func coq.hints.opaque constant, string -> bool.
 
-% [coq.hints.add-resolve GR DB Priority Pattern] Like Hint Resolve GR |
+% [coq.hints.add-resolve-hnf GR DB Priority Pattern] Like Hint Resolve GR |
 % Priority Pattern : DB.
 % Supported attributes:
 % - @local! (default is export)
