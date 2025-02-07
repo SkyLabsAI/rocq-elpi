@@ -5,7 +5,7 @@
  (flags :standard -w -27)
  (preprocessor_deps coq_elpi_config.mlh)
  (preprocess
-  (pps ppx_deriving.std ppx_optcomp -- -cookie "ppx_optcomp.env=env ~coq:(Defined \"%{coq:version.major}.%{coq:version.minor}\")"))
+  (pps ppx_deriving.std ppx_optcomp -- -cookie "ppx_optcomp.env=env ~coq:(Defined \"9.1\")"))
  (libraries coq-core.plugins.ltac coq-core.vernac elpi))
 
 (rule
