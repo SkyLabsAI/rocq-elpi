@@ -43,6 +43,7 @@
 
 (package
  (name coq-elpi-tests-stdlib)
+ (allow_empty)
  (synopsis "Technical package to run tests depending on Stdlib")
  (description "Do not install")
  (depends coq-elpi coq-stdlib))
