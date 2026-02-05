@@ -1,4 +1,4 @@
-(coq.theory
+(rocq.theory
   ; myExtension is the logical path that can be used in rocq to import the
   ; the .v in the theories folder
  (name myExtension)
@@ -8,6 +8,7 @@
   ; will use the pluging called ext.plug
   ; the rocq files in this folder use the pluging defined in src/
  (plugins myExtension.plugin)
+ (generate_project_file)
  (package myExtension))
 
 (include_subdirs qualified)

@@ -1,7 +1,8 @@
-(coq.theory
+(rocq.theory
  (name myExtension.tests)
  (package myExtension-tests)
   ; the tests folder depends on ext
+ (generate_project_file)
  (theories elpi_elpi elpi myExtension myExtension.lib))
 
 (include_subdirs qualified)
