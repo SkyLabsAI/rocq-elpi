@@ -1,4 +1,4 @@
-(coq.theory
+(rocq.theory
  (name elpi.tests)
  (plugins rocq-elpi.elpi)
  (theories elpi))

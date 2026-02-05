@@ -46,5 +46,5 @@
       (echo "]\n")))))
 
 
-(coq.pp
+(rocq.pp
  (modules rocq_elpi_vernacular_syntax rocq_elpi_arg_syntax))
