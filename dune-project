@@ -1,6 +1,7 @@
 (lang dune 3.21)
 (using rocq 0.11)
 (name rocq-elpi)
+(version v3.4.0-9-g999c3ef)
 ;(generate_opam_files)
 
 (source (github LPCIC/coq-elpi))
