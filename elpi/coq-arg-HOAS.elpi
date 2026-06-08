@@ -120,6 +120,25 @@ external symbol constructor : id -> arity -> indc-decl.
 external symbol field       : field-attributes -> id -> term -> (term -> record-decl) -> record-decl.
 external symbol end-record  : record-decl.
 
+% --------------------------------------------------------------------------
+% Mutual inductive blocks (Proposal 2, see mutind.md).
+% DECLARED ONLY: the OCaml embedding/readback for these constructors is
+% intentionally NOT wired up yet.  They exist so HOAS using them type-checks,
+% but any coq.env.add-indt / coq.env.indt-decl / coq.typecheck-indt-decl that
+% would produce or consume them fails at runtime (the indt-decl readback has
+% no case for them).  The RED tests in tests/test_HOAS_mutual_inductive.v
+% assert exactly those failures with [Fail].
+% To implement: promote `type` -> `external symbol`, add `declare_global_symbol`
+% for each, and extend the indt-decl embed/readback in rocq_elpi_HOAS.ml.
+%
+% Mirrors the shipped `mfix` design (coq-HOAS.elpi) one constructor at a time:
+%   mfix-block <-> mind-block ;  mfix <-> minductive-block ;
+%   mfix-ty <-> minductive ;     mfix-bo <-> mblock.
+kind mind-block type.
+type minductive-block mind-block -> indt-decl.                                   % entry (peer of `inductive`/`record`)
+type minductive       id -> bool -> arity -> (term -> mind-block) -> mind-block. % chain (one component: id/kind/arity, binds self-ref)
+type mblock           list (list indc-decl) -> mind-block.                       % terminator (one constructor-list per component)
+
 % Example.
 % Remark that A is a regular parameter; y is a non-uniform parameter and t
 % also features an index of type bool.

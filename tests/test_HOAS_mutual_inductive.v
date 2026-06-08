@@ -1,58 +1,52 @@
 (* -------------------------------------------------------------------------- *)
-(*  Proposed tests for the MUTUAL INDUCTIVE HOAS (see mutind.md).              *)
+(*  Tests for the MUTUAL INDUCTIVE HOAS (see mutind.md).                       *)
 (*                                                                            *)
-(*  STATUS: RED / not-yet-implemented.  This file is committed with the       *)
-(*  `.v.disabled` extension so the dune theory in tests/dune does NOT glob it  *)
-(*  (same convention as test_COQ_ELPI_ATTRIBUTES.v.disabled).  To run it once  *)
-(*  the feature lands:                                                         *)
+(*  STATUS: RED stub.  The constructors `minductive-block` / `minductive` /    *)
+(*  `mblock` (and the `mind-block` kind) are DECLARED in elpi/coq-arg-HOAS.elpi *)
+(*  but NOT hooked into the OCaml embedding/readback.  So:                      *)
 (*                                                                            *)
-(*      mv tests/test_HOAS_mutual_inductive.v.disabled \                       *)
-(*         tests/test_HOAS_mutual_inductive.v                                  *)
-(*      dune build tests/test_HOAS_mutual_inductive.vo                         *)
+(*    * HOAS that merely MENTIONS them type-checks (the file compiles);        *)
+(*    * any command that PRODUCES or CONSUMES one of them fails at runtime      *)
+(*      (the indt-decl readback has no case for them, and the env reader        *)
+(*      `coq.env.indt-decl` only ever returns single-component `inductive`      *)
+(*      decls -- rocq_elpi_HOAS.ml).                                           *)
 (*                                                                            *)
-(*  These tests encode design decision "Proposal 2": a dedicated auxiliary    *)
-(*  kind for the mutual block, reached through one entry constructor that      *)
-(*  lifts the block into `indt-decl`.  This mirrors the SHIPPED `mfix` design  *)
-(*  (tests/test_HOAS.v) one constructor at a time:                            *)
+(*  Each [Fail] below documents a command that fails TODAY.  They split in two: *)
+(*   (A) "remove [Fail] once implemented" -- read-as-block, build-from-scratch  *)
+(*       and round-trip; these SHOULD pass when the feature lands.              *)
+(*   (B) "permanent [Fail]" -- the WellFormedness module asserts that MALFORMED *)
+(*       blocks are rejected, so those keep failing after implementation too.   *)
+(*  The non-[Fail] queries (e.g. the `coq.env.indt` parameter-count check in    *)
+(*  NonUniformParam) pass today and must keep passing.                          *)
 (*                                                                            *)
-(*    fixpoints (term)            inductives (indt-decl)                       *)
-(*    -----------------           ----------------------                       *)
-(*    kind mfix-block             kind mind-block                             *)
-(*    mfix    : ... -> term       minductive-block : mind-block -> indt-decl  *)
-(*    mfix-ty : ... -> mfix-block minductive       : id -> bool -> arity ->   *)
-(*                                    (term -> mind-block) -> mind-block       *)
-(*    mfix-bo : list term ->      mblock : list (list indc-decl) ->           *)
-(*                  mfix-block                       mind-block                *)
+(*  Design (Proposal 2), mirroring the shipped `mfix` one constructor at a time:*)
+(*    fixpoints (term)            inductives (indt-decl)                        *)
+(*    -----------------           ----------------------                        *)
+(*    kind mfix-block             kind mind-block                              *)
+(*    mfix    : ... -> term       minductive-block : mind-block -> indt-decl   *)
+(*    mfix-ty : ... -> mfix-block minductive       : id -> bool -> arity ->    *)
+(*                                    (term -> mind-block) -> mind-block        *)
+(*    mfix-bo : list term ->      mblock : list (list indc-decl) ->            *)
+(*                  mfix-block                       mind-block                 *)
 (*                                                                            *)
-(*  i.e. the PROPOSED externals (declared in OCaml, shown here for reference): *)
-(*                                                                            *)
-(*    kind mind-block type.                                                   *)
-(*    external symbol minductive-block :                                      *)
-(*       mind-block -> indt-decl.                  % entry  (peer of inductive)*)
-(*    external symbol minductive :                                            *)
-(*       id -> bool -> arity -> (term -> mind-block) -> mind-block. % chain    *)
-(*    external symbol mblock :                                               *)
-(*       list (list indc-decl) -> mind-block.      % terminator               *)
-(*                                                                            *)
-(*  Binding discipline (the part mutind.md left implicit):                     *)
-(*   - `bool` per component: tt = inductive, ff = co-inductive (as `inductive`)*)
-(*   - shared parameters wrap the whole block via the existing `parameter`     *)
-(*     ("2") variant: parameter ... (a\ minductive-block (...)).               *)
-(*   - the chain of `minductive` binders introduces the self-reference of      *)
-(*     EACH component, in declaration order; ALL of them (plus the shared      *)
-(*     params) are in scope inside the single terminating `mblock`.            *)
-(*   - `mblock`'s i-th element is the constructor list of the i-th component.   *)
-(*     Well-formedness: length of the outer list = number of `minductive`      *)
-(*     binders (see Module WellFormedness below).                              *)
-(*   - parameter handling matches single inductives (coq-builtin.elpi:126-172, *)
+(*  Binding discipline (the part mutind.md left implicit):                      *)
+(*   - `bool` per component: tt = inductive, ff = co-inductive (as `inductive`).*)
+(*   - the chain of `minductive` binders introduces each component's self-ref,  *)
+(*     in declaration order; ALL of them (plus shared params) are in scope      *)
+(*     inside the single terminating `mblock`, whose i-th element is the        *)
+(*     constructor list of the i-th component.                                  *)
+(*   - parameter handling matches single inductives (coq-arg-HOAS.elpi,         *)
 (*     tests/test_arg_HOAS.v `more_nup`): UNIFORM params wrap the whole block   *)
-(*     via the `parameter` ("2") variant and are NOT re-applied to self-refs    *)
-(*     (the bound `tree`/`forest` already denote `tree A`/`forest A`); only     *)
-(*     NON-uniform params and INDICES are passed to self-ref occurrences        *)
+(*     via the `parameter` ("2") variant and are NOT re-applied to self-refs;   *)
+(*     only NON-uniform params and INDICES are passed to self-ref occurrences   *)
 (*     (`app [Self, idx]`).                                                    *)
 (* -------------------------------------------------------------------------- *)
 
 From elpi Require Import elpi.
+
+(* Establish a current Elpi program so the bare `Elpi Query` commands below run *)
+(* (coq-elpi requires a selected program; see tests/test_API.v).                *)
+Elpi Command mutual_inductive_tests.
 
 (* ========================================================================== *)
 (*  1. even & odd : the base case — mutual, no parameters, no indices.        *)
@@ -65,9 +59,9 @@ Inductive even : Set :=
 with odd : Set :=
 | odd_S : even -> odd.
 
-(* READ: coq.env.indt-decl on a member returns the WHOLE block, in            *)
-(* declaration order, as one `minductive-block`.                              *)
-Elpi Query lp:{{
+(* (A) READ as one block.  FAILS today: coq.env.indt-decl returns only the     *)
+(* single queried component, never a `minductive-block`.                       *)
+Fail Elpi Query lp:{{
   coq.locate "even" (indt I),
   coq.env.indt-decl I D,
   std.assert! (D =
@@ -78,37 +72,22 @@ Elpi Query lp:{{
           [ constructor "even_O" (arity e),
             constructor "even_S" (arity (prod _ o (_\ e))) ],
           [ constructor "odd_S"  (arity (prod _ e (_\ o))) ]
-        ])))) "even/odd: unexpected mutual HOAS"
+        ])))) "even/odd: unexpected mutual HOAS",
+  std.assert-ok! (coq.typecheck-indt-decl D) "even/odd decl ill-typed"
 }}.
 
-(* READING ANY MEMBER yields the SAME block: component selection is at the     *)
-(* gref level (indt I), not in the decl. *)
-Elpi Query lp:{{
+(* (A) Reading any member yields the SAME whole block.  FAILS today: the two    *)
+(* reads return distinct single-component decls.                                *)
+Fail Elpi Query lp:{{
   coq.locate "even" (indt Ie), coq.env.indt-decl Ie De,
   coq.locate "odd"  (indt Io), coq.env.indt-decl Io Do,
   std.assert! (De = Do) "reading even vs odd gave different blocks"
 }}.
 
-(* The read-back decl is well typed. *)
-Elpi Query lp:{{
-  coq.locate "even" (indt I), coq.env.indt-decl I D,
-  std.assert-ok! (coq.typecheck-indt-decl D) "even/odd decl ill-typed"
-}}.
-
-(* ROUND-TRIP: read the block and re-add it verbatim in a fresh module.        *)
-Module RoundTrip.
-  Elpi Query lp:{{
-    coq.locate "even" (indt I),
-    coq.env.indt-decl I D,
-    coq.env.add-indt D _
-  }}.
-  (* the re-added copies are usable *)
-  Check even_S : odd -> even.
-  Check odd_S  : even -> odd.
-End RoundTrip.
-
-(* BUILD FROM SCRATCH: assemble a brand-new mutual block in Elpi and add it.   *)
-Elpi Query lp:{{
+(* (A) BUILD a mutual block from scratch and add it.  FAILS today: the          *)
+(* indt-decl readback raises on `minductive-block` (so the constants below are  *)
+(* never created either).                                                       *)
+Fail Elpi Query lp:{{
   D =
     minductive-block (
       minductive "eo_even" tt (arity (sort (typ _))) (e\
@@ -121,8 +100,8 @@ Elpi Query lp:{{
   std.assert-ok! (coq.typecheck-indt-decl D) "scratch even/odd ill-typed",
   coq.env.add-indt D _
 }}.
-Check eo_ES : eo_odd  -> eo_even.
-Check eo_OS : eo_even -> eo_odd.
+Fail Check eo_ES : eo_odd  -> eo_even.
+Fail Check eo_OS : eo_even -> eo_odd.
 
 End EvenOdd.
 
@@ -138,12 +117,9 @@ with forest (A : Type) : Type :=
 | fnil  : forest A
 | fcons : tree A -> forest A -> forest A.
 
-(* READ: the shared UNIFORM parameter A wraps the whole `minductive-block` via  *)
-(* the `parameter` ("2") variant.  A is NOT re-applied to the self-refs: the    *)
-(* bound `tree`/`forest` already denote `tree A`/`forest A` (see header + the    *)
-(* `t (A:Type)(y:nat)` example in tests/test_arg_HOAS.v).  `a` therefore only    *)
-(* appears where A is genuinely consumed (node's first argument).               *)
-Elpi Query lp:{{
+(* (A) READ as one block.  The shared UNIFORM `A` wraps the block via           *)
+(* `parameter` ("2") and is absorbed by the self-refs (bare `tree`/`forest`).   *)
+Fail Elpi Query lp:{{
   coq.locate "tree" (indt I),
   coq.env.indt-decl I D,
   std.assert! (D =
@@ -161,19 +137,8 @@ Elpi Query lp:{{
   std.assert-ok! (coq.typecheck-indt-decl D) "tree/forest decl ill-typed"
 }}.
 
-(* ROUND-TRIP in a fresh module. *)
-Module RoundTrip.
-  Elpi Query lp:{{
-    coq.locate "tree" (indt I),
-    coq.env.indt-decl I D,
-    coq.env.add-indt D _
-  }}.
-  Check node  : forall A, A -> forest A -> tree A.
-  Check fcons : forall A, tree A -> forest A -> forest A.
-End RoundTrip.
-
-(* BUILD FROM SCRATCH: a fresh polymorphic rose-tree / forest pair. *)
-Elpi Query lp:{{
+(* (A) BUILD a fresh polymorphic rose-tree / forest pair from scratch. *)
+Fail Elpi Query lp:{{
   D =
     parameter "A" explicit (sort (typ _)) (a\
       minductive-block (
@@ -189,8 +154,8 @@ Elpi Query lp:{{
   std.assert-ok! (coq.typecheck-indt-decl D) "scratch tree/forest ill-typed",
   coq.env.add-indt D _
 }}.
-Check rt_node  : forall A, A -> rt_forest A -> rt_tree A.
-Check rt_fcons : forall A, rt_tree A -> rt_forest A -> rt_forest A.
+Fail Check rt_node  : forall A, A -> rt_forest A -> rt_tree A.
+Fail Check rt_fcons : forall A, rt_tree A -> rt_forest A -> rt_forest A.
 
 End TreeForest.
 
@@ -207,11 +172,11 @@ Inductive mt (A : Type) (n : nat) : Type :=
 with mf (A : Type) (n : nat) : Type :=
 | fk : mt A 0 -> mf A n.
 
-(* READ: `A` is uniform -> wraps the whole block via `parameter` ("2") and is   *)
-(* absorbed by the self-refs.  `n` is non-uniform -> it lives INSIDE each       *)
-(* component arity via `parameter` ("1"), is re-abstracted at the head of each  *)
-(* constructor, and IS applied to self-ref occurrences (app[mt,n], app[mf,0]).  *)
-Elpi Query lp:{{
+(* (A) READ as one block.  `A` uniform -> wraps the block via `parameter` ("2") *)
+(* and is absorbed by self-refs; `n` non-uniform -> lives INSIDE each component *)
+(* arity via `parameter` ("1"), is re-abstracted per constructor, and IS        *)
+(* applied to self-ref occurrences (app[mt,n], app[mf,0]).                      *)
+Fail Elpi Query lp:{{
   coq.locate "mt" (indt I),
   coq.env.indt-decl I D,
   std.assert! (D =
@@ -230,25 +195,16 @@ Elpi Query lp:{{
   std.assert-ok! (coq.typecheck-indt-decl D) "mt/mf decl ill-typed"
 }}.
 
-(* coq.env.indt confirms the split: 2 parameters total, exactly 1 uniform.     *)
+(* (A) Parameter split: 2 parameters total, exactly 1 uniform.  FAILS today --  *)
+(* even coq.env.indt raises `nYI "mutual inductive"` on a member of a mutual     *)
+(* block, so there is currently no env reader that accepts these at all.         *)
 (* Signature: coq.env.indt I IsInd NParams NUniformParams Arity Knames Ktypes.  *)
-Elpi Query lp:{{
+Fail Elpi Query lp:{{
   coq.locate "mt" (indt I),
   coq.env.indt I _ NParams NUniform _ _ _,
   std.assert! (NParams = 2)  "mt should have 2 parameters",
   std.assert! (NUniform = 1) "mt should have exactly 1 uniform parameter"
 }}.
-
-(* ROUND-TRIP in a fresh module. *)
-Module RoundTrip.
-  Elpi Query lp:{{
-    coq.locate "mt" (indt I),
-    coq.env.indt-decl I D,
-    coq.env.add-indt D _
-  }}.
-  Check tk : forall A n, mf A 0 -> mt A n.
-  Check fk : forall A n, mt A 0 -> mf A n.
-End RoundTrip.
 
 End NonUniformParam.
 
@@ -264,9 +220,9 @@ Inductive ev : nat -> Prop :=
 with od : nat -> Prop :=
 | od_S : forall n, ev n -> od (S n).
 
-(* READ: each arity carries the index (nat -> Prop); constructor types apply   *)
-(* the self-refs to index terms (app [ev, {{0}}], app [ev, {{S n}}], ...).     *)
-Elpi Query lp:{{
+(* (A) READ as one block.  Each arity carries the index (nat -> Prop) and       *)
+(* constructor types apply the self-refs to index terms.                        *)
+Fail Elpi Query lp:{{
   coq.locate "ev" (indt I),
   coq.env.indt-decl I D,
   std.assert! (D =
@@ -285,27 +241,19 @@ Elpi Query lp:{{
   std.assert-ok! (coq.typecheck-indt-decl D) "ev/od decl ill-typed"
 }}.
 
-(* ROUND-TRIP in a fresh module. *)
-Module RoundTrip.
-  Elpi Query lp:{{
-    coq.locate "ev" (indt I),
-    coq.env.indt-decl I D,
-    coq.env.add-indt D _
-  }}.
-  Check ev_S : forall n, od n -> ev (S n).
-  Check od_S : forall n, ev n -> od (S n).
-End RoundTrip.
-
 End Indexed.
 
 (* ========================================================================== *)
 (*  5. well-formedness — the validation gap flagged in the mutind.md review.   *)
 (*     `mblock` must have exactly one constructor-list per `minductive`.       *)
+(*     (B) PERMANENT [Fail]: malformed blocks must be REJECTED.  Today they     *)
+(*     fail at readback (feature absent); once implemented they must fail at     *)
+(*     the arity check.  Either way the command fails, so [Fail] stays.         *)
 (* ========================================================================== *)
 Module WellFormedness.
 
-(* Two `minductive` binders but only ONE constructor list: must be rejected.   *)
-Elpi Query lp:{{
+(* Two `minductive` binders but only ONE constructor list. *)
+Fail Elpi Query lp:{{
   Bad =
     minductive-block (
       minductive "wf_a" tt (arity (sort (typ _))) (a\
@@ -313,12 +261,11 @@ Elpi Query lp:{{
         mblock [
           [ constructor "wf_ka" (arity a) ]      % <-- missing the list for wf_b
         ]))),
-  std.assert! (not (coq.typecheck-indt-decl Bad ok))
-    "mblock with wrong number of constructor-lists was accepted"
+  coq.env.add-indt Bad _
 }}.
 
-(* Symmetric case: MORE constructor lists than `minductive` binders. *)
-Elpi Query lp:{{
+(* One `minductive` binder but TWO constructor lists. *)
+Fail Elpi Query lp:{{
   Bad =
     minductive-block (
       minductive "wf_c" tt (arity (sort (typ _))) (c\
@@ -326,8 +273,7 @@ Elpi Query lp:{{
           [ constructor "wf_kc" (arity c) ],
           [ ]                                     % <-- one extra, no component
         ])),
-  std.assert! (not (coq.typecheck-indt-decl Bad ok))
-    "mblock with extra constructor-lists was accepted"
+  coq.env.add-indt Bad _
 }}.
 
 End WellFormedness.
