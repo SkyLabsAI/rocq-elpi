@@ -1,0 +1,333 @@
+(* -------------------------------------------------------------------------- *)
+(*  Proposed tests for the MUTUAL INDUCTIVE HOAS (see mutind.md).              *)
+(*                                                                            *)
+(*  STATUS: RED / not-yet-implemented.  This file is committed with the       *)
+(*  `.v.disabled` extension so the dune theory in tests/dune does NOT glob it  *)
+(*  (same convention as test_COQ_ELPI_ATTRIBUTES.v.disabled).  To run it once  *)
+(*  the feature lands:                                                         *)
+(*                                                                            *)
+(*      mv tests/test_HOAS_mutual_inductive.v.disabled \                       *)
+(*         tests/test_HOAS_mutual_inductive.v                                  *)
+(*      dune build tests/test_HOAS_mutual_inductive.vo                         *)
+(*                                                                            *)
+(*  These tests encode design decision "Proposal 2": a dedicated auxiliary    *)
+(*  kind for the mutual block, reached through one entry constructor that      *)
+(*  lifts the block into `indt-decl`.  This mirrors the SHIPPED `mfix` design  *)
+(*  (tests/test_HOAS.v) one constructor at a time:                            *)
+(*                                                                            *)
+(*    fixpoints (term)            inductives (indt-decl)                       *)
+(*    -----------------           ----------------------                       *)
+(*    kind mfix-block             kind mind-block                             *)
+(*    mfix    : ... -> term       minductive-block : mind-block -> indt-decl  *)
+(*    mfix-ty : ... -> mfix-block minductive       : id -> bool -> arity ->   *)
+(*                                    (term -> mind-block) -> mind-block       *)
+(*    mfix-bo : list term ->      mblock : list (list indc-decl) ->           *)
+(*                  mfix-block                       mind-block                *)
+(*                                                                            *)
+(*  i.e. the PROPOSED externals (declared in OCaml, shown here for reference): *)
+(*                                                                            *)
+(*    kind mind-block type.                                                   *)
+(*    external symbol minductive-block :                                      *)
+(*       mind-block -> indt-decl.                  % entry  (peer of inductive)*)
+(*    external symbol minductive :                                            *)
+(*       id -> bool -> arity -> (term -> mind-block) -> mind-block. % chain    *)
+(*    external symbol mblock :                                               *)
+(*       list (list indc-decl) -> mind-block.      % terminator               *)
+(*                                                                            *)
+(*  Binding discipline (the part mutind.md left implicit):                     *)
+(*   - `bool` per component: tt = inductive, ff = co-inductive (as `inductive`)*)
+(*   - shared parameters wrap the whole block via the existing `parameter`     *)
+(*     ("2") variant: parameter ... (a\ minductive-block (...)).               *)
+(*   - the chain of `minductive` binders introduces the self-reference of      *)
+(*     EACH component, in declaration order; ALL of them (plus the shared      *)
+(*     params) are in scope inside the single terminating `mblock`.            *)
+(*   - `mblock`'s i-th element is the constructor list of the i-th component.   *)
+(*     Well-formedness: length of the outer list = number of `minductive`      *)
+(*     binders (see Module WellFormedness below).                              *)
+(*   - parameter handling matches single inductives (coq-builtin.elpi:126-172, *)
+(*     tests/test_arg_HOAS.v `more_nup`): UNIFORM params wrap the whole block   *)
+(*     via the `parameter` ("2") variant and are NOT re-applied to self-refs    *)
+(*     (the bound `tree`/`forest` already denote `tree A`/`forest A`); only     *)
+(*     NON-uniform params and INDICES are passed to self-ref occurrences        *)
+(*     (`app [Self, idx]`).                                                    *)
+(* -------------------------------------------------------------------------- *)
+
+From elpi Require Import elpi.
+
+(* ========================================================================== *)
+(*  1. even & odd : the base case — mutual, no parameters, no indices.        *)
+(* ========================================================================== *)
+Module EvenOdd.
+
+Inductive even : Set :=
+| even_O : even
+| even_S : odd -> even
+with odd : Set :=
+| odd_S : even -> odd.
+
+(* READ: coq.env.indt-decl on a member returns the WHOLE block, in            *)
+(* declaration order, as one `minductive-block`.                              *)
+Elpi Query lp:{{
+  coq.locate "even" (indt I),
+  coq.env.indt-decl I D,
+  std.assert! (D =
+    minductive-block (
+      minductive "even" tt (arity (sort _)) (e\
+      minductive "odd"  tt (arity (sort _)) (o\
+        mblock [
+          [ constructor "even_O" (arity e),
+            constructor "even_S" (arity (prod _ o (_\ e))) ],
+          [ constructor "odd_S"  (arity (prod _ e (_\ o))) ]
+        ])))) "even/odd: unexpected mutual HOAS"
+}}.
+
+(* READING ANY MEMBER yields the SAME block: component selection is at the     *)
+(* gref level (indt I), not in the decl. *)
+Elpi Query lp:{{
+  coq.locate "even" (indt Ie), coq.env.indt-decl Ie De,
+  coq.locate "odd"  (indt Io), coq.env.indt-decl Io Do,
+  std.assert! (De = Do) "reading even vs odd gave different blocks"
+}}.
+
+(* The read-back decl is well typed. *)
+Elpi Query lp:{{
+  coq.locate "even" (indt I), coq.env.indt-decl I D,
+  std.assert-ok! (coq.typecheck-indt-decl D) "even/odd decl ill-typed"
+}}.
+
+(* ROUND-TRIP: read the block and re-add it verbatim in a fresh module.        *)
+Module RoundTrip.
+  Elpi Query lp:{{
+    coq.locate "even" (indt I),
+    coq.env.indt-decl I D,
+    coq.env.add-indt D _
+  }}.
+  (* the re-added copies are usable *)
+  Check even_S : odd -> even.
+  Check odd_S  : even -> odd.
+End RoundTrip.
+
+(* BUILD FROM SCRATCH: assemble a brand-new mutual block in Elpi and add it.   *)
+Elpi Query lp:{{
+  D =
+    minductive-block (
+      minductive "eo_even" tt (arity (sort (typ _))) (e\
+      minductive "eo_odd"  tt (arity (sort (typ _))) (o\
+        mblock [
+          [ constructor "eo_O"  (arity e),
+            constructor "eo_ES" (arity (prod `x` o (_\ e))) ],
+          [ constructor "eo_OS" (arity (prod `x` e (_\ o))) ]
+        ]))),
+  std.assert-ok! (coq.typecheck-indt-decl D) "scratch even/odd ill-typed",
+  coq.env.add-indt D _
+}}.
+Check eo_ES : eo_odd  -> eo_even.
+Check eo_OS : eo_even -> eo_odd.
+
+End EvenOdd.
+
+(* ========================================================================== *)
+(*  2. polymorphic trees with list children — mutual + a shared parameter.    *)
+(*     `forest A` is the list of children of a `tree A` (forest ~= list tree).*)
+(* ========================================================================== *)
+Module TreeForest.
+
+Inductive tree (A : Type) : Type :=
+| node : A -> forest A -> tree A
+with forest (A : Type) : Type :=
+| fnil  : forest A
+| fcons : tree A -> forest A -> forest A.
+
+(* READ: the shared UNIFORM parameter A wraps the whole `minductive-block` via  *)
+(* the `parameter` ("2") variant.  A is NOT re-applied to the self-refs: the    *)
+(* bound `tree`/`forest` already denote `tree A`/`forest A` (see header + the    *)
+(* `t (A:Type)(y:nat)` example in tests/test_arg_HOAS.v).  `a` therefore only    *)
+(* appears where A is genuinely consumed (node's first argument).               *)
+Elpi Query lp:{{
+  coq.locate "tree" (indt I),
+  coq.env.indt-decl I D,
+  std.assert! (D =
+    parameter "A" explicit (sort _) (a\
+      minductive-block (
+        minductive "tree"   tt (arity (sort _)) (tree\
+        minductive "forest" tt (arity (sort _)) (forest\
+          mblock [
+            [ constructor "node"
+                (arity (prod _ a (_\ prod _ forest (_\ tree)))) ],
+            [ constructor "fnil"  (arity forest),
+              constructor "fcons"
+                (arity (prod _ tree (_\ prod _ forest (_\ forest)))) ]
+          ]))))) "tree/forest: unexpected polymorphic mutual HOAS",
+  std.assert-ok! (coq.typecheck-indt-decl D) "tree/forest decl ill-typed"
+}}.
+
+(* ROUND-TRIP in a fresh module. *)
+Module RoundTrip.
+  Elpi Query lp:{{
+    coq.locate "tree" (indt I),
+    coq.env.indt-decl I D,
+    coq.env.add-indt D _
+  }}.
+  Check node  : forall A, A -> forest A -> tree A.
+  Check fcons : forall A, tree A -> forest A -> forest A.
+End RoundTrip.
+
+(* BUILD FROM SCRATCH: a fresh polymorphic rose-tree / forest pair. *)
+Elpi Query lp:{{
+  D =
+    parameter "A" explicit (sort (typ _)) (a\
+      minductive-block (
+        minductive "rt_tree"   tt (arity (sort (typ _))) (tree\
+        minductive "rt_forest" tt (arity (sort (typ _))) (forest\
+          mblock [
+            [ constructor "rt_node"
+                (arity (prod `x` a (_\ prod `c` forest (_\ tree)))) ],
+            [ constructor "rt_fnil"  (arity forest),
+              constructor "rt_fcons"
+                (arity (prod `h` tree (_\ prod `t` forest (_\ forest)))) ]
+          ])))),
+  std.assert-ok! (coq.typecheck-indt-decl D) "scratch tree/forest ill-typed",
+  coq.env.add-indt D _
+}}.
+Check rt_node  : forall A, A -> rt_forest A -> rt_tree A.
+Check rt_fcons : forall A, rt_tree A -> rt_forest A -> rt_forest A.
+
+End TreeForest.
+
+(* ========================================================================== *)
+(*  3. non-uniform parameter — mutual block sharing a UNIFORM `A` and a        *)
+(*     NON-uniform `n` (recursive occurrences instantiate it to 0, not n).    *)
+(*     Mutual analogue of the single-inductive `more_nup` test                 *)
+(*     (tests/test_arg_HOAS.v).                                               *)
+(* ========================================================================== *)
+Module NonUniformParam.
+
+Inductive mt (A : Type) (n : nat) : Type :=
+| tk : mf A 0 -> mt A n
+with mf (A : Type) (n : nat) : Type :=
+| fk : mt A 0 -> mf A n.
+
+(* READ: `A` is uniform -> wraps the whole block via `parameter` ("2") and is   *)
+(* absorbed by the self-refs.  `n` is non-uniform -> it lives INSIDE each       *)
+(* component arity via `parameter` ("1"), is re-abstracted at the head of each  *)
+(* constructor, and IS applied to self-ref occurrences (app[mt,n], app[mf,0]).  *)
+Elpi Query lp:{{
+  coq.locate "mt" (indt I),
+  coq.env.indt-decl I D,
+  std.assert! (D =
+    parameter "A" explicit (sort _) (a\
+      minductive-block (
+        minductive "mt" tt (parameter "n" explicit {{ nat }} (_\ arity (sort _))) (mt\
+        minductive "mf" tt (parameter "n" explicit {{ nat }} (_\ arity (sort _))) (mf\
+          mblock [
+            [ constructor "tk"
+                (parameter "n" explicit {{ nat }} (n\
+                   arity (prod _ (app [mf, {{ 0 }}]) (_\ app [mt, n])))) ],
+            [ constructor "fk"
+                (parameter "n" explicit {{ nat }} (n\
+                   arity (prod _ (app [mt, {{ 0 }}]) (_\ app [mf, n])))) ]
+          ]))))) "mt/mf: unexpected non-uniform-parameter HOAS",
+  std.assert-ok! (coq.typecheck-indt-decl D) "mt/mf decl ill-typed"
+}}.
+
+(* coq.env.indt confirms the split: 2 parameters total, exactly 1 uniform.     *)
+(* Signature: coq.env.indt I IsInd NParams NUniformParams Arity Knames Ktypes.  *)
+Elpi Query lp:{{
+  coq.locate "mt" (indt I),
+  coq.env.indt I _ NParams NUniform _ _ _,
+  std.assert! (NParams = 2)  "mt should have 2 parameters",
+  std.assert! (NUniform = 1) "mt should have exactly 1 uniform parameter"
+}}.
+
+(* ROUND-TRIP in a fresh module. *)
+Module RoundTrip.
+  Elpi Query lp:{{
+    coq.locate "mt" (indt I),
+    coq.env.indt-decl I D,
+    coq.env.add-indt D _
+  }}.
+  Check tk : forall A n, mf A 0 -> mt A n.
+  Check fk : forall A n, mt A 0 -> mf A n.
+End RoundTrip.
+
+End NonUniformParam.
+
+(* ========================================================================== *)
+(*  4. indexed mutual inductives — is_even / is_odd : nat -> Prop.            *)
+(*     Exercises a non-uniform INDEX in the arity and in constructor types.   *)
+(* ========================================================================== *)
+Module Indexed.
+
+Inductive ev : nat -> Prop :=
+| ev_O : ev 0
+| ev_S : forall n, od n -> ev (S n)
+with od : nat -> Prop :=
+| od_S : forall n, ev n -> od (S n).
+
+(* READ: each arity carries the index (nat -> Prop); constructor types apply   *)
+(* the self-refs to index terms (app [ev, {{0}}], app [ev, {{S n}}], ...).     *)
+Elpi Query lp:{{
+  coq.locate "ev" (indt I),
+  coq.env.indt-decl I D,
+  std.assert! (D =
+    minductive-block (
+      minductive "ev" tt (arity (prod _ {{ nat }} (_\ sort _))) (ev\
+      minductive "od" tt (arity (prod _ {{ nat }} (_\ sort _))) (od\
+        mblock [
+          [ constructor "ev_O" (arity (app [ev, {{ 0 }}])),
+            constructor "ev_S"
+              (arity (prod _ {{ nat }} (n\
+                      prod _ (app [od, n]) (_\ app [ev, {{ S lp:n }}])))) ],
+          [ constructor "od_S"
+              (arity (prod _ {{ nat }} (n\
+                      prod _ (app [ev, n]) (_\ app [od, {{ S lp:n }}])))) ]
+        ])))) "indexed mutual: unexpected HOAS",
+  std.assert-ok! (coq.typecheck-indt-decl D) "ev/od decl ill-typed"
+}}.
+
+(* ROUND-TRIP in a fresh module. *)
+Module RoundTrip.
+  Elpi Query lp:{{
+    coq.locate "ev" (indt I),
+    coq.env.indt-decl I D,
+    coq.env.add-indt D _
+  }}.
+  Check ev_S : forall n, od n -> ev (S n).
+  Check od_S : forall n, ev n -> od (S n).
+End RoundTrip.
+
+End Indexed.
+
+(* ========================================================================== *)
+(*  5. well-formedness — the validation gap flagged in the mutind.md review.   *)
+(*     `mblock` must have exactly one constructor-list per `minductive`.       *)
+(* ========================================================================== *)
+Module WellFormedness.
+
+(* Two `minductive` binders but only ONE constructor list: must be rejected.   *)
+Elpi Query lp:{{
+  Bad =
+    minductive-block (
+      minductive "wf_a" tt (arity (sort (typ _))) (a\
+      minductive "wf_b" tt (arity (sort (typ _))) (b\
+        mblock [
+          [ constructor "wf_ka" (arity a) ]      % <-- missing the list for wf_b
+        ]))),
+  std.assert! (not (coq.typecheck-indt-decl Bad ok))
+    "mblock with wrong number of constructor-lists was accepted"
+}}.
+
+(* Symmetric case: MORE constructor lists than `minductive` binders. *)
+Elpi Query lp:{{
+  Bad =
+    minductive-block (
+      minductive "wf_c" tt (arity (sort (typ _))) (c\
+        mblock [
+          [ constructor "wf_kc" (arity c) ],
+          [ ]                                     % <-- one extra, no component
+        ])),
+  std.assert! (not (coq.typecheck-indt-decl Bad ok))
+    "mblock with extra constructor-lists was accepted"
+}}.
+
+End WellFormedness.
