@@ -269,6 +269,147 @@ Elpi Query lp:{{
 End Indexed.
 
 (* ========================================================================== *)
+(*  Additional corner cases.  Each declares a mutual (co)inductive in Coq,     *)
+(*  READS it as a block, TYPECHECKS the block, and ROUND-TRIPS it through      *)
+(*  coq.env.add-indt in a fresh module (exercising reader + writer together),  *)
+(*  plus a targeted property check via coq.env.indt where relevant.           *)
+(* ========================================================================== *)
+
+(* C1. Mutual CO-INDUCTIVES (parameterized streams): components carry `ff`. *)
+Module CoStreams.
+
+CoInductive cs_a (A : Type) : Type :=
+| cs_consa : A -> cs_b A -> cs_a A
+with cs_b (A : Type) : Type :=
+| cs_consb : A -> cs_a A -> cs_b A.
+
+Elpi Query lp:{{
+  coq.locate "cs_a" (indt I),
+  coq.env.indt I IsInd _ _ _ _ _,
+  std.assert! (IsInd = ff) "cs_a should be co-inductive",
+  coq.env.indt-decl I D,
+  std.assert-ok! (coq.typecheck-indt-decl D) "cs_a/cs_b ill-typed"
+}}.
+
+Module RT.
+  Elpi Query lp:{{
+    coq.locate "cs_a" (indt I), coq.env.indt-decl I D, coq.env.add-indt D _,
+    coq.locate "cs_a" (indt J), coq.env.indt J IsInd _ _ _ _ _,
+    std.assert! (IsInd = ff) "round-tripped cs_a must stay co-inductive"
+  }}.
+End RT.
+
+End CoStreams.
+
+(* C2. PARAMETERIZED with TWO uniform parameters. *)
+Module TwoParams.
+
+Inductive tp_a (A B : Type) : Type :=
+| tp_mka : A -> tp_b A B -> tp_a A B
+with tp_b (A B : Type) : Type :=
+| tp_mkb : B -> tp_a A B -> tp_b A B.
+
+Elpi Query lp:{{
+  coq.locate "tp_a" (indt I),
+  coq.env.indt I _ NParams _ _ _ _,
+  std.assert! (NParams = 2) "tp_a should have 2 parameters",
+  coq.env.indt-decl I D,
+  std.assert! (D = parameter "A" _ _ (_\ parameter "B" _ _ (_\ minductive-block _)))
+    "tp_a/tp_b: expected two parameters wrapping the block",
+  std.assert-ok! (coq.typecheck-indt-decl D) "tp_a/tp_b ill-typed"
+}}.
+
+Module RT.
+  Elpi Query lp:{{ coq.locate "tp_a" (indt I), coq.env.indt-decl I D, coq.env.add-indt D _ }}.
+End RT.
+
+End TwoParams.
+
+(* C3. INDEXED, THREE components (no params): exercises N=3 with indices. *)
+Module Indexed3.
+
+Inductive t3a : nat -> Prop :=
+| t3a0 : t3a 0
+| t3aS : forall n, t3b n -> t3a (S n)
+with t3b : nat -> Prop :=
+| t3bS : forall n, t3c n -> t3b (S n)
+with t3c : nat -> Prop :=
+| t3c0 : t3c 0
+| t3cS : forall n, t3a n -> t3c (S n).
+
+(* reading any of the three members yields the same 3-component block *)
+Elpi Query lp:{{
+  coq.locate "t3a" (indt Ia), coq.env.indt-decl Ia Da,
+  coq.locate "t3b" (indt Ib), coq.env.indt-decl Ib Db,
+  coq.locate "t3c" (indt Ic), coq.env.indt-decl Ic Dc,
+  std.assert! (Da = Db) "t3a vs t3b: blocks differ",
+  std.assert! (Db = Dc) "t3b vs t3c: blocks differ",
+  std.assert! (Da =
+    minductive-block (minductive "t3a" tt _ (_\
+                      minductive "t3b" tt _ (_\
+                      minductive "t3c" tt _ (_\ mblock _))))) "t3: expected 3-component block",
+  std.assert-ok! (coq.typecheck-indt-decl Da) "t3 block ill-typed"
+}}.
+
+Module RT.
+  Elpi Query lp:{{ coq.locate "t3a" (indt I), coq.env.indt-decl I D, coq.env.add-indt D _ }}.
+End RT.
+
+End Indexed3.
+
+(* C4. COMBINATION: a uniform PARAMETER and an INDEX (nat) together. *)
+Module ParamIndex.
+
+Inductive pit_a (A : Type) : nat -> Type :=
+| pit_l : pit_a A 0
+| pit_n : forall n, A -> pit_b A n -> pit_a A (S n)
+with pit_b (A : Type) : nat -> Type :=
+| pit_fnil : pit_b A 0
+| pit_fcons : forall n, pit_a A n -> pit_b A n -> pit_b A (S n).
+
+Elpi Query lp:{{
+  coq.locate "pit_a" (indt I),
+  coq.env.indt I _ NParams _ _ _ _,
+  std.assert! (NParams = 1) "pit_a should have exactly 1 (uniform) parameter",
+  coq.env.indt-decl I D,
+  std.assert-ok! (coq.typecheck-indt-decl D) "pit_a/pit_b ill-typed"
+}}.
+
+Module RT.
+  Elpi Query lp:{{ coq.locate "pit_a" (indt I), coq.env.indt-decl I D, coq.env.add-indt D _ }}.
+End RT.
+
+End ParamIndex.
+
+(* C5. COMBINATION, built from HOAS: parameter `A` (uniform) + index `nat`,    *)
+(*     exercising the writer's index handling directly (not via a read).       *)
+Module ParamIndexBuild.
+
+Elpi Query lp:{{
+  D =
+    parameter "A" explicit (sort (typ _)) (a\
+      minductive-block (
+        minductive "pix_a" tt (arity (prod `n` {{ nat }} (_\ sort (typ _)))) (pa\
+        minductive "pix_b" tt (arity (prod `n` {{ nat }} (_\ sort (typ _)))) (pb\
+          mblock [
+            [ constructor "pix_a0" (arity (app [pa, {{ 0 }}])),
+              constructor "pix_aS"
+                (arity (prod `n` {{ nat }} (n\
+                   prod _ a (_\ prod _ (app [pb, n]) (_\ app [pa, {{ S lp:n }}]))))) ],
+            [ constructor "pix_b0" (arity (app [pb, {{ 0 }}])),
+              constructor "pix_bS"
+                (arity (prod `n` {{ nat }} (n\
+                   prod _ (app [pa, n]) (_\ app [pb, {{ S lp:n }}])))) ]
+          ])))),
+  std.assert-ok! (coq.typecheck-indt-decl D) "pix_a/pix_b ill-typed",
+  coq.env.add-indt D _
+}}.
+Check pix_aS : forall A n, A -> pix_b A n -> pix_a A (S n).
+Check pix_bS : forall A n, pix_a A n -> pix_b A (S n).
+
+End ParamIndexBuild.
+
+(* ========================================================================== *)
 (*  5. well-formedness — the validation gap flagged in the mutind.md review.   *)
 (*     `mblock` must have exactly one constructor-list per `minductive`.       *)
 (*     (B) PERMANENT [Fail]: malformed blocks must be REJECTED.  Today they     *)
