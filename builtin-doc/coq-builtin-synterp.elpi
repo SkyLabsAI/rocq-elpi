@@ -162,6 +162,21 @@ external symbol constructor : id -> arity -> indc-decl.
 external symbol field       : field-attributes -> id -> term -> (term -> record-decl) -> record-decl.
 external symbol end-record  : record-decl.
 
+% --------------------------------------------------------------------------
+% Mutual inductive blocks (Proposal 2, see mutind.md).
+% Mirrors the shipped `mfix` design (coq-HOAS.elpi) one constructor at a time:
+%   mfix-block <-> mind-block ;  mfix <-> minductive-block ;
+%   mfix-ty <-> minductive ;     mfix-bo <-> mblock.
+% A `minductive-block` wraps a chain of `minductive` binders (each introducing
+% one component's self-reference, in declaration order) terminated by a single
+% `mblock`, whose i-th element is the constructor list of the i-th component.
+% Shared (uniform) parameters wrap the whole block via the `parameter` ("2")
+% variant; non-uniform parameters and indices live in each component arity.
+kind mind-block type.
+external symbol minductive-block : mind-block -> indt-decl.                                   % entry (peer of `inductive`/`record`)
+external symbol minductive       : id -> bool -> arity -> (term -> mind-block) -> mind-block. % chain (one component: id/kind/arity, binds self-ref)
+external symbol mblock           : list (list indc-decl) -> mind-block.                       % terminator (one constructor-list per component)
+
 % Example.
 % Remark that A is a regular parameter; y is a non-uniform parameter and t
 % also features an index of type bool.

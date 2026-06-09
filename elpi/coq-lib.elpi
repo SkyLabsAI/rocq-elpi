@@ -329,6 +329,28 @@ coq.typecheck-indt-decl (record ID A _IDK FDecl) Diag :- do-ok! Diag [
     coq.typecheck-indt-decl-c i A 0 (constructor "fields" (arity (K i)))
   ]
 ].
+coq.typecheck-indt-decl (minductive-block Block) Diag :- !,
+  coq.typecheck-minductive-block Block [] Diag.
+
+% Walks the `minductive` chain, pushing one self-reference binder per component
+% (so all of them are in scope when the `mblock` constructor lists are checked),
+% then checks each component's constructor list against its own inductive.
+func coq.typecheck-minductive-block mind-block, list (pair term (pair term int)) -> diagnostic.
+coq.typecheck-minductive-block (minductive ID _ Arity Rest) Acc Diag :- do-ok! Diag [
+  coq.typecheck-indt-arity Arity A NUPNO,
+  d\ @pi-parameter ID A i\ coq.typecheck-minductive-block (Rest i) [pr i (pr A NUPNO)|Acc] d
+].
+coq.typecheck-minductive-block (mblock Kss) Acc Diag :-
+  std.rev Acc Comps,
+  coq.typecheck-mblock Comps Kss Diag.
+
+func coq.typecheck-mblock list (pair term (pair term int)), list (list indc-decl) -> diagnostic.
+coq.typecheck-mblock [] [] ok :- !.
+coq.typecheck-mblock [pr I (pr A NUPNO)|Cs] [Ks|Kss] Diag :- !, do-ok! Diag [
+  (d\ forall-ok Ks (coq.typecheck-indt-decl-c I A NUPNO) d),
+  (d\ coq.typecheck-mblock Cs Kss d)
+].
+coq.typecheck-mblock _ _ (error "mblock: number of constructor lists differs from number of inductive components").
 
 func coq.typecheck-indc-arity arity, int -> term, sort, diagnostic.
 coq.typecheck-indc-arity A 0 T S Diag :- !,

@@ -3324,7 +3324,7 @@ let comInductive_interp_mutual_inductive_constr ~cumulative ~poly ~template ~fin
   let env_ar = Environ.pop_rel_context (List.length ctx_params) env_ar_params in
   ComInductive.interp_mutual_inductive_constr ~arities_explicit:[true] ~template_syntax:[SyntaxAllowsTemplatePoly] ~flags ~env_ar ~ctx_params
 [%%else]
-let comInductive_interp_mutual_inductive_constr ~cumulative ~poly ~template ~finite ~ctx_params ~env_ar_params =
+let comInductive_interp_mutual_inductive_constr ~ntyps ~cumulative ~poly ~template ~finite ~ctx_params ~env_ar_params =
   let flags = {
     ComInductive.poly = PolyFlags.make ~univ_poly:poly ~cumulative ~collapse_sort_variables:true;
     template = Some false;
@@ -3334,7 +3334,7 @@ let comInductive_interp_mutual_inductive_constr ~cumulative ~poly ~template ~fin
   }
   in
   let env_ar = Environ.pop_rel_context (List.length ctx_params) env_ar_params in
-  ComInductive.interp_mutual_inductive_constr ~arities_explicit:[true] ~template_syntax:[SyntaxAllowsTemplatePoly] ~flags ~env_ar ~ctx_params
+  ComInductive.interp_mutual_inductive_constr ~arities_explicit:(CList.make ntyps true) ~template_syntax:(CList.make ntyps ComInductive.SyntaxAllowsTemplatePoly) ~flags ~env_ar ~ctx_params
 [%%endif]
 
 
@@ -3446,6 +3446,7 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
       let sigma = restricted_sigma_of used state in
 
       state, comInductive_interp_mutual_inductive_constr
+        ~ntyps:1
         ~sigma
         ~template:(Some false)
         ~udecl
@@ -3486,10 +3487,136 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
                    str (pp2string P.(term depth) fields))
       end
     | E.Const c when c == end_recordc -> state, [], ind
-    | _ ->  err Pp.(str"field/end-record expected: "++ 
+    | _ ->  err Pp.(str"field/end-record expected: "++
                  str (pp2string P.(term depth) fields))
   in
 
+  (* mutual inductive block: minductive .. (mblock [..]) sharing `params`.
+     Reads the chain (pushing one self-ref binder per component), then the
+     mblock constructor-lists under all N binders, and builds a single mutual
+     inductive entry.  Non-uniform parameters in a from-HOAS mutual block are
+     not yet supported. *)
+  let aux_minductive coq_ctx ~depth params impls state block =
+    let params = force_name_ctx params in
+    let paramno = List.length params in
+    let impls = List.rev impls in
+    let rec collect coq_ctx ~depth comps state node =
+      match E.look ~depth node with
+      | E.App(c,id,[fin;arity;rest]) when c == minductivec ->
+          let name = in_coq_annot ~depth id in
+          if Name.is_anonymous (Context.binder_name name) then
+            err Pp.(str"id expected in minductive, got: "++ str (pp2string P.(term depth) id));
+          let itname = match Context.binder_name name with Name x -> x | _ -> assert false in
+          let finiteness =
+            if in_coq_bool ~depth state ~default:true fin
+            then Declarations.Finite else Declarations.CoFinite in
+          let state, nuparams, _nuimpls, arity, gl =
+            readback_arity ~depth coq_ctx constraints state arity in
+          if nuparams <> [] then
+            nYI "non uniform parameters in a mutual inductive built from HOAS";
+          let e = Context.Rel.Declaration.LocalAssum(name,arity) in
+          (match E.look ~depth rest with
+           | E.Lam body ->
+               collect (push_coq_ctx_local depth e coq_ctx) ~depth:(depth+1)
+                 ((itname,finiteness,arity,gl) :: comps) state body
+           | _ -> err Pp.(str"minductive: lambda expected"))
+      | E.App(c,ksll,[]) when c == mblockc ->
+          finish coq_ctx ~depth (List.rev comps) ksll state
+      | _ -> err Pp.(str"minductive or mblock expected, got: "++
+                     str (pp2string P.(term depth) node))
+    and finish coq_ctx ~depth comps ksll state =
+      let ntyps = List.length comps in
+      let ksls = U.lp_list_to_list ~depth ksll in
+      if List.length ksls <> ntyps then
+        err Pp.(str"mblock: expected "++ int ntyps ++
+                str" constructor lists but got "++ int (List.length ksls));
+      (* From  Params, Ind1..IndN, NuParams |- kty
+         To    Ind1..IndN, Params, NuParams |- kty  (self-refs applied to params) *)
+      let subst nupno =
+        CList.init (nupno + paramno + ntyps) (fun i ->
+          if i < nupno then EC.mkRel (i+1)
+          else if i < nupno + ntyps then
+            let ind = EC.mkRel (paramno + i + 1) in
+            if paramno = 0 then ind
+            else
+              let ps = CArray.init paramno (fun j -> EC.mkRel (nupno + paramno - j)) in
+              EC.mkApp (ind, ps)
+          else EC.mkRel (i + 1 - ntyps)) in
+      let decode_ctors state ks_lp =
+        let ks = U.lp_list_to_list ~depth ks_lp in
+        let (state, gls_rev), names_ktypes =
+          CList.fold_left_map (fun (state, extra) t ->
+            match E.look ~depth t with
+            | E.App(c,name,[ty]) when c == constructorc ->
+                (match E.look ~depth name with
+                 | E.CData name when CD.is_string name ->
+                     let name = Id.of_string (CD.to_string name) in
+                     let state, kparams, kimpls, ty, gls =
+                       readback_arity ~depth coq_ctx constraints state ty in
+                     (state, gls :: extra), (name, ty, kparams, kimpls)
+                 | _ -> err Pp.(str"constructor name (string) expected"))
+            | _ -> err Pp.(str"constructor expected, got: "++
+                           str (pp2string P.(term depth) t)))
+            (state,[]) ks in
+        let knames, ktypes, kparams, kimpls = CList.split4 names_ktypes in
+        let sigma = get_sigma state in
+        let ktypes = CList.map3 (check_consistency_and_drop_nuparams sigma []) knames kparams ktypes in
+        let ktypes = ktypes |> List.map (fun t -> EC.Vars.substl (subst 0) t) in
+        let kimpls = List.map (fun x -> impls @ x) kimpls in
+        state, (knames, ktypes), kimpls, List.concat (List.rev gls_rev) in
+      let state, per_ind =
+        CList.fold_left_map (fun state ks_lp ->
+          let state, knkt, kimpls, gls = decode_ctors state ks_lp in
+          state, (knkt, kimpls, gls)) state ksls in
+      let constructors = List.map (fun (knkt,_,_) -> knkt) per_ind in
+      let ks_impls_all = List.map (fun (_,ki,_) -> ki) per_ind in
+      let gls_k = List.concat_map (fun (_,_,g) -> g) per_ind in
+      let indnames = List.map (fun (n,_,_,_) -> n) comps in
+      let arities = List.map (fun (_,_,a,_) -> a) comps in
+      let finiteness = (fun (_,f,_,_) -> f) (List.hd comps) in
+      let gl_ar = List.concat_map (fun (_,_,_,g) -> g) comps in
+      let the_types =
+        List.rev_map (fun (n,_,a,_) ->
+          Context.Rel.Declaration.LocalAssum(nameR n, EC.it_mkProd_or_LetIn a params)) comps in
+      let state, (melims, mind, ubinders, uctx) =
+        let private_ind = false in
+        let state, poly, cumulative, udecl, variances =
+          poly_cumul_udecl_variance_of_options state coq_ctx.options in
+        let env_ar_params =
+          (Global.env ()) |> EC.push_rel_context the_types |> EC.push_rel_context params in
+        let state = minimize_universes state in
+        let used =
+          List.fold_left (fun acc (_,kt) ->
+            List.fold_left (fun acc t ->
+              Univ.Level.Set.union acc (universes_of_term state t)) acc kt)
+            Univ.Level.Set.empty constructors in
+        let used =
+          List.fold_left (fun acc a ->
+            Univ.Level.Set.union acc (universes_of_term state a)) used arities in
+        let used =
+          let open Context.Rel.Declaration in
+          List.fold_left (fun acc -> function
+            | LocalDef(_,t,b) ->
+              Univ.Level.Set.union acc
+                (Univ.Level.Set.union (universes_of_term state t) (universes_of_term state b))
+            | LocalAssum(_,t) ->
+              Univ.Level.Set.union acc (universes_of_term state t))
+            used params in
+        let sigma = restricted_sigma_of used state in
+        state, comInductive_interp_mutual_inductive_constr
+          ~ntyps ~sigma ~template:(Some false) ~udecl ~variances
+          ~ctx_params:params
+          ~indnames ~arities ~constructors
+          ~env_ar_params ~cumulative ~poly ~private_ind
+          ~finite:finiteness |> comInductive_interp_mutual_inductive_constr_post
+        in
+      let mind = { mind with Entries.mind_entry_record = None } in
+      let ind_impls = List.map (fun ki -> impls, ki) ks_impls_all in
+      state, (melims, mind, uctx, ubinders, None, ind_impls),
+        List.concat [gl_ar; gls_k]
+    in
+    collect coq_ctx ~depth [] state block
+  in
 
   let rec aux_decl coq_ctx ~depth params impls state extra t =
 
@@ -3545,6 +3672,9 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
       | _ -> err Pp.(str"id expected, got: "++
                  str (pp2string P.(term depth) kn))
       end
+    | E.App(c,block,[]) when c == minductive_blockc ->
+        let state, res, gls = aux_minductive coq_ctx ~depth params impls state block in
+        state, res, List.concat (List.rev (gls :: extra))
     | _ -> err Pp.(str"(co)inductive/record expected: "++
                  str (pp2string P.(term depth) t))
   and aux_lam e coq_ctx ~depth params impls state extra t =

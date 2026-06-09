@@ -59,9 +59,8 @@ Inductive even : Set :=
 with odd : Set :=
 | odd_S : even -> odd.
 
-(* (A) READ as one block.  FAILS today: coq.env.indt-decl returns only the     *)
-(* single queried component, never a `minductive-block`.                       *)
-Fail Elpi Query lp:{{
+(* READ as one block: coq.env.indt-decl returns the whole mutual block. *)
+Elpi Query lp:{{
   coq.locate "even" (indt I),
   coq.env.indt-decl I D,
   std.assert! (D =
@@ -84,10 +83,8 @@ Elpi Query lp:{{
   std.assert! (De = Do) "reading even vs odd gave different blocks"
 }}.
 
-(* (A) BUILD a mutual block from scratch and add it.  FAILS today: the          *)
-(* indt-decl readback raises on `minductive-block` (so the constants below are  *)
-(* never created either).                                                       *)
-Fail Elpi Query lp:{{
+(* BUILD a mutual block from scratch, typecheck it, and add it. *)
+Elpi Query lp:{{
   D =
     minductive-block (
       minductive "eo_even" tt (arity (sort (typ _))) (e\
@@ -100,8 +97,8 @@ Fail Elpi Query lp:{{
   std.assert-ok! (coq.typecheck-indt-decl D) "scratch even/odd ill-typed",
   coq.env.add-indt D _
 }}.
-Fail Check eo_ES : eo_odd  -> eo_even.
-Fail Check eo_OS : eo_even -> eo_odd.
+Check eo_ES : eo_odd  -> eo_even.
+Check eo_OS : eo_even -> eo_odd.
 
 End EvenOdd.
 
@@ -117,9 +114,9 @@ with forest (A : Type) : Type :=
 | fnil  : forest A
 | fcons : tree A -> forest A -> forest A.
 
-(* (A) READ as one block.  The shared UNIFORM `A` wraps the block via           *)
-(* `parameter` ("2") and is absorbed by the self-refs (bare `tree`/`forest`).   *)
-Fail Elpi Query lp:{{
+(* READ as one block.  The shared UNIFORM `A` wraps the block via `parameter`   *)
+(* ("2") and is absorbed by the self-refs (bare `tree`/`forest`).               *)
+Elpi Query lp:{{
   coq.locate "tree" (indt I),
   coq.env.indt-decl I D,
   std.assert! (D =
@@ -137,8 +134,8 @@ Fail Elpi Query lp:{{
   std.assert-ok! (coq.typecheck-indt-decl D) "tree/forest decl ill-typed"
 }}.
 
-(* (A) BUILD a fresh polymorphic rose-tree / forest pair from scratch. *)
-Fail Elpi Query lp:{{
+(* BUILD a fresh polymorphic rose-tree / forest pair from scratch. *)
+Elpi Query lp:{{
   D =
     parameter "A" explicit (sort (typ _)) (a\
       minductive-block (
@@ -154,8 +151,8 @@ Fail Elpi Query lp:{{
   std.assert-ok! (coq.typecheck-indt-decl D) "scratch tree/forest ill-typed",
   coq.env.add-indt D _
 }}.
-Fail Check rt_node  : forall A, A -> rt_forest A -> rt_tree A.
-Fail Check rt_fcons : forall A, rt_tree A -> rt_forest A -> rt_forest A.
+Check rt_node  : forall A, A -> rt_forest A -> rt_tree A.
+Check rt_fcons : forall A, rt_tree A -> rt_forest A -> rt_forest A.
 
 End TreeForest.
 
@@ -176,7 +173,7 @@ with mf (A : Type) (n : nat) : Type :=
 (* and is absorbed by self-refs; `n` non-uniform -> lives INSIDE each component *)
 (* arity via `parameter` ("1"), is re-abstracted per constructor, and IS        *)
 (* applied to self-ref occurrences (app[mt,n], app[mf,0]).                      *)
-Fail Elpi Query lp:{{
+Elpi Query lp:{{
   coq.locate "mt" (indt I),
   coq.env.indt-decl I D,
   std.assert! (D =
@@ -219,9 +216,9 @@ Inductive ev : nat -> Prop :=
 with od : nat -> Prop :=
 | od_S : forall n, ev n -> od (S n).
 
-(* (A) READ as one block.  Each arity carries the index (nat -> Prop) and       *)
+(* READ as one block.  Each arity carries the index (nat -> Prop) and           *)
 (* constructor types apply the self-refs to index terms.                        *)
-Fail Elpi Query lp:{{
+Elpi Query lp:{{
   coq.locate "ev" (indt I),
   coq.env.indt-decl I D,
   std.assert! (D =

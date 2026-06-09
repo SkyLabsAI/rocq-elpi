@@ -2606,15 +2606,17 @@ Supported attributes:
        let univ_binders = univ_binder_compat_820 (uentry', ubinders) univ_binders in
        declare_mutual_inductive_with_eliminations ~primitive_expected ~default_dep_elim me univ_binders ind_impls in
      let ind = mind, 0 in
-     let id, cids = match me.Entries.mind_entry_inds with
-       | [ { Entries.mind_entry_typename = id; mind_entry_consnames = cids }] -> id, cids
-       | _ -> assert false
-       in
+     let inds_id_cids =
+       List.map (fun { Entries.mind_entry_typename = id; mind_entry_consnames = cids } -> (id, cids))
+         me.Entries.mind_entry_inds in
+     let id = match inds_id_cids with (id,_) :: _ -> id | [] -> assert false in
      let lid_of id = CAst.make ~loc:(to_coq_loc @@ State.get Rocq_elpi_builtins_synterp.invocation_site_loc state) id in
      begin match record_info with
-     | None -> (* regular inductive *)
-        Dumpglob.dump_definition (lid_of id) false "ind";
-        List.iter (fun x -> Dumpglob.dump_definition (lid_of x) false "constr") cids
+     | None -> (* regular (possibly mutual) inductive *)
+        List.iter (fun (id, cids) ->
+          Dumpglob.dump_definition (lid_of id) false "ind";
+          List.iter (fun x -> Dumpglob.dump_definition (lid_of x) false "constr") cids)
+          inds_id_cids
      | Some (primitive,field_specs) -> (* record: projection... *)
          let names, flags =
            List.(split (map lp2record_field_spec field_specs))
