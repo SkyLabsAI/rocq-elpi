@@ -205,6 +205,37 @@ Elpi Query lp:{{
 End NonUniformParam.
 
 (* ========================================================================== *)
+(*  3b. LIMITATION: building a mutual block from HOAS with a NON-UNIFORM        *)
+(*      parameter is not yet supported by the writer.  READING such a block     *)
+(*      works (see NonUniformParam above, which round-trips mt/mf through        *)
+(*      coq.env.indt-decl), but coq.env.add-indt / lp2inductive_entry raises     *)
+(*      nYI "non uniform parameters in a mutual inductive built from HOAS".      *)
+(*      This [Fail] pins the limitation; remove it once the writer supports      *)
+(*      non-uniform parameters in from-HOAS mutual blocks.                       *)
+(* ========================================================================== *)
+Module NonUniformParamBuildLimitation.
+
+(* The from-scratch analogue of mt/mf: a UNIFORM-free block whose only parameter *)
+(* `n` is non-uniform (cross-recursive occurrences instantiate it to 0).         *)
+Fail Elpi Query lp:{{
+  D =
+    minductive-block (
+      minductive "nu_a" tt (parameter "n" explicit {{ nat }} (_\ arity (sort (typ _)))) (a\
+      minductive "nu_b" tt (parameter "n" explicit {{ nat }} (_\ arity (sort (typ _)))) (b\
+        mblock [
+          [ constructor "nu_ka"
+              (parameter "n" explicit {{ nat }} (n\
+                 arity (prod _ (app [b, {{ 0 }}]) (_\ app [a, n])))) ],
+          [ constructor "nu_kb"
+              (parameter "n" explicit {{ nat }} (n\
+                 arity (prod _ (app [a, {{ 0 }}]) (_\ app [b, n])))) ]
+        ]))),
+  coq.env.add-indt D _
+}}.
+
+End NonUniformParamBuildLimitation.
+
+(* ========================================================================== *)
 (*  4. indexed mutual inductives — is_even / is_odd : nat -> Prop.            *)
 (*     Exercises a non-uniform INDEX in the arity and in constructor types.   *)
 (* ========================================================================== *)
