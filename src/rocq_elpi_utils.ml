@@ -204,9 +204,11 @@ let binding_kind_of_manual_implicit x =
 
 let manual_implicit_of_gdecl (name, _, bk, _, _) = manual_implicit_of_binding_kind name bk
 
+(* NB: was guarded against mutual inductives; the guard is lifted now that
+   coq.env.indt reads per-packet and coq.env.indt-decl handles mutual blocks
+   (see inductive_decl2lp / hoas_mind2lp in rocq_elpi_HOAS.ml). *)
 let lookup_inductive env i =
   let mind, indbo = Inductive.lookup_mind_specif env i in
-  if Array.length mind.Declarations.mind_packets <> 1 then nYI "API(env) mutual inductive";
   (mind, indbo)
 
 [%%if coq = "9.0" || coq = "9.1"]

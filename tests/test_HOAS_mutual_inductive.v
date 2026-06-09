@@ -76,9 +76,9 @@ Fail Elpi Query lp:{{
   std.assert-ok! (coq.typecheck-indt-decl D) "even/odd decl ill-typed"
 }}.
 
-(* (A) Reading any member yields the SAME whole block.  FAILS today: the two    *)
-(* reads return distinct single-component decls.                                *)
-Fail Elpi Query lp:{{
+(* Reading any member yields the SAME whole block (component selection is at    *)
+(* the gref level, not in the decl).                                            *)
+Elpi Query lp:{{
   coq.locate "even" (indt Ie), coq.env.indt-decl Ie De,
   coq.locate "odd"  (indt Io), coq.env.indt-decl Io Do,
   std.assert! (De = Do) "reading even vs odd gave different blocks"
@@ -195,11 +195,10 @@ Fail Elpi Query lp:{{
   std.assert-ok! (coq.typecheck-indt-decl D) "mt/mf decl ill-typed"
 }}.
 
-(* (A) Parameter split: 2 parameters total, exactly 1 uniform.  FAILS today --  *)
-(* even coq.env.indt raises `nYI "mutual inductive"` on a member of a mutual     *)
-(* block, so there is currently no env reader that accepts these at all.         *)
+(* Parameter split: 2 parameters total, exactly 1 uniform.  coq.env.indt now    *)
+(* reads the per-component signature of a mutual member.                        *)
 (* Signature: coq.env.indt I IsInd NParams NUniformParams Arity Knames Ktypes.  *)
-Fail Elpi Query lp:{{
+Elpi Query lp:{{
   coq.locate "mt" (indt I),
   coq.env.indt I _ NParams NUniform _ _ _,
   std.assert! (NParams = 2)  "mt should have 2 parameters",

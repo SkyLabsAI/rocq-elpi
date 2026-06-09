@@ -3150,6 +3150,10 @@ let inductivec = E.Constants.declare_global_symbol "inductive"
 let recordc = E.Constants.declare_global_symbol "record"
 let fieldc = E.Constants.declare_global_symbol "field"
 let end_recordc = E.Constants.declare_global_symbol "end-record"
+(* mutual inductive blocks (Proposal 2, see mutind.md / coq-arg-HOAS.elpi) *)
+let minductive_blockc = E.Constants.declare_global_symbol "minductive-block"
+let minductivec = E.Constants.declare_global_symbol "minductive"
+let mblockc = E.Constants.declare_global_symbol "mblock"
 
 let in_elpi_id = function
   | Names.Name.Name id -> CD.of_string (Names.Id.to_string id)
@@ -3717,6 +3721,81 @@ let hoas_ind2lp ~depth coq_ctx state { params; decl } =
     )
 ;;
 
+(* --- mutual inductive blocks (Proposal 2, see mutind.md) ------------------ *)
+let in_elpi_indtdecl_minductive_block block =
+  E.mkApp minductive_blockc block []
+let in_elpi_indtdecl_minductive state find id arity rest =
+  let coind = not (Declarations.CoFinite = find) in
+  E.mkApp minductivec (in_elpi_id id) [in_elpi_bool state coind; arity; E.mkLam rest]
+let in_elpi_indtdecl_mblock ksl =
+  E.mkApp mblockc (U.list_to_lp_list (List.map U.list_to_lp_list ksl)) []
+
+(* Emits a whole mutual block as `minductive-block (minductive .. (mblock ..))`.
+   `decls` share the parameter telescope `params`.  Each constructor type comes
+   in (from the env reader) abstracted w.r.t. the inductive-types context, i.e.
+       Ind1..IndN, Params, NuParams |- kty
+   and must be relocated to the HOAS layout
+       Params, Ind1..IndN, NuParams |- kty
+   (uniform params are dropped from self-reference occurrences by beta). *)
+let hoas_mind2lp ~depth coq_ctx state ~params ~decls =
+  let calldepth = depth in
+  under_coq2elpi_relctx ~calldepth ~coq_ctx state params
+    ~mk_ctx_item:mk_inductive_parameter2
+    (fun coq_ctx hyps ~depth state ->
+      let sigma = get_sigma state in
+      let paramsno = List.length params in
+      let ntyps = List.length decls in
+      let rec iter n acc f = if n = 0 then acc else iter (n-1) (f acc) f in
+      let subst arityno =
+        CList.init (arityno + paramsno + ntyps) (fun i0 ->
+          let i = i0 + 1 in
+          if i <= arityno then EC.mkRel i
+          else if i <= arityno + paramsno then EC.mkRel (i + ntyps)
+          else
+            let src_off = i - (arityno + paramsno) in
+            let ind = EC.mkRel (arityno + src_off) in
+            iter paramsno ind (fun x ->
+              EConstr.mkLambda (anonR, EConstr.mkProp, EConstr.Vars.lift 1 x))) in
+      let reloc ctx_len t =
+        let t = EC.Vars.substl (subst ctx_len) t in
+        Reductionops.nf_beta (Global.env ()) sigma t in
+      (* arities are closed over params only: embed before pushing self-refs *)
+      let state, arities, gls_ar =
+        API.Utils.map_acc (fun state decl -> match decl with
+          | Inductive { nuparams; typ; _ } ->
+              embed_arity ~depth coq_ctx state (nuparams, typ)
+          | Record _ -> nYI "mutual record") state decls in
+      (* push N inductive self-ref binders: Ind1 (outer) .. IndN (inner) *)
+      let rec push_inds k d ctx =
+        if k = 0 then ctx
+        else push_inds (k-1) (d+1)
+          (push_coq_ctx_local d
+             (Context.Rel.Declaration.LocalAssum(anonR,EConstr.mkProp)) ctx) in
+      let coq_ctx = push_inds ntyps depth coq_ctx in
+      let depthN = depth + ntyps in
+      let embed_constructor state { id; arity; typ } =
+        let alen = List.length arity in
+        let kctx = List.mapi (fun i ({ extra; typ } as x) ->
+          ignore extra; { x with typ = reloc (alen - i - 1) typ }) arity in
+        let state, karity, gl =
+          embed_arity ~depth:depthN coq_ctx state (kctx, reloc alen typ) in
+        state, in_elpi_indtdecl_constructor (Name id) karity, gl in
+      let state, ksl, gls_k =
+        API.Utils.map_acc (fun state decl -> match decl with
+          | Inductive { constructors; _ } ->
+              API.Utils.map_acc embed_constructor state constructors
+          | Record _ -> nYI "mutual record") state decls in
+      let ids_kinds = List.map (function
+        | Inductive { id; kind; _ } -> (id, kind)
+        | Record { id; _ } -> (id, Declarations.BiFinite)) decls in
+      let inner = in_elpi_indtdecl_mblock ksl in
+      let chain =
+        List.fold_right2 (fun (id, kind) arity acc ->
+          in_elpi_indtdecl_minductive state kind (Name id) arity acc)
+          ids_kinds arities inner in
+      state, in_elpi_indtdecl_minductive_block chain, List.flatten [gls_ar; gls_k])
+;;
+
 let param2ctx l =
   let open Context.Rel.Declaration in
   List.map (function
@@ -3765,20 +3844,20 @@ let inductive_decl2lp ~depth coq_ctx constraints state (mutind,uinst,(mind,ind),
   let allparams = safe_combine2_impls allparams i_impls ~default2:Glob_term.Explicit |> param2ctx in
   let nuparamsno = allparamsno - paramsno in
   let nuparams, params = CList.chop nuparamsno allparams in
-  let { Declarations.mind_consnames = constructor_names;
-        mind_typename = id;
-        mind_nf_lc = constructor_types;
-      } = ind in
-  let mind_record = mind_record (mind,ind) in
-  let constructor_types = constructor_types |> Array.map (fun (ctx,ty) -> Vars.subst_instance_context uinst ctx, Vars.subst_instance_constr uinst ty) in
-  let arity_w_params = Inductive.type_of_inductive ((mind,ind),uinst) in
   let sigma = get_sigma state in
   let drop_nparams_from_term n x =
     let x = EConstr.of_constr x in
     let ctx, sort = EConstr.decompose_prod_decls sigma x in
     let ctx = drop_nparams_from_ctx n ctx in
     EConstr.it_mkProd_or_LetIn sort ctx in
-  let decl =
+  let decl_of ind k_impls =
+    let { Declarations.mind_consnames = constructor_names;
+          mind_typename = id;
+          mind_nf_lc = constructor_types;
+        } = ind in
+    let mind_record = mind_record (mind,ind) in
+    let constructor_types = constructor_types |> Array.map (fun (ctx,ty) -> Vars.subst_instance_context uinst ctx, Vars.subst_instance_constr uinst ty) in
+    let arity_w_params = Inductive.type_of_inductive ((mind,ind),uinst) in
     if mind_record = Declarations.NotRecord then
       let typ = drop_nparams_from_term allparamsno arity_w_params in
       let constructors =
@@ -3827,9 +3906,15 @@ let inductive_decl2lp ~depth coq_ctx constraints state (mutind,uinst,(mind,ind),
         | LocalDef _, _ -> nYI "let-in in record fields parameters") l in
       let fields = List.combine kctx fields_atts |> param2field in
       Record { id; kid; typ; fields }
-    in
-  let ind = { params; decl } in
-  hoas_ind2lp ~depth coq_ctx state ind
+  in
+  if ntyps = 1 then
+    hoas_ind2lp ~depth coq_ctx state { params; decl = decl_of ind k_impls }
+  else
+    (* mutual block: per-packet decls share the parameter telescope; constructor
+       implicits default to explicit (recomputing them per packet is not needed
+       for the HOAS shape). *)
+    let decls = CList.init ntyps (fun j -> decl_of mind.mind_packets.(j) []) in
+    hoas_mind2lp ~depth coq_ctx state ~params ~decls
 ;;
        
 let upoly_decl_of ~depth state ~loose_udecl mie =
