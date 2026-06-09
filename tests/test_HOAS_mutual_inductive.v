@@ -205,19 +205,14 @@ Elpi Query lp:{{
 End NonUniformParam.
 
 (* ========================================================================== *)
-(*  3b. LIMITATION: building a mutual block from HOAS with a NON-UNIFORM        *)
-(*      parameter is not yet supported by the writer.  READING such a block     *)
-(*      works (see NonUniformParam above, which round-trips mt/mf through        *)
-(*      coq.env.indt-decl), but coq.env.add-indt / lp2inductive_entry raises     *)
-(*      nYI "non uniform parameters in a mutual inductive built from HOAS".      *)
-(*      This [Fail] pins the limitation; remove it once the writer supports      *)
-(*      non-uniform parameters in from-HOAS mutual blocks.                       *)
+(*  3b. BUILD a mutual block from HOAS with a NON-UNIFORM parameter.            *)
+(*      `n` is non-uniform (cross-recursive occurrences instantiate it to 0).  *)
+(*      The from-scratch analogue of mt/mf: the writer threads the shared       *)
+(*      non-uniform telescope through ctx_params / env_ar_params / relocation.  *)
 (* ========================================================================== *)
-Module NonUniformParamBuildLimitation.
+Module NonUniformParamBuild.
 
-(* The from-scratch analogue of mt/mf: a UNIFORM-free block whose only parameter *)
-(* `n` is non-uniform (cross-recursive occurrences instantiate it to 0).         *)
-Fail Elpi Query lp:{{
+Elpi Query lp:{{
   D =
     minductive-block (
       minductive "nu_a" tt (parameter "n" explicit {{ nat }} (_\ arity (sort (typ _)))) (a\
@@ -230,10 +225,13 @@ Fail Elpi Query lp:{{
               (parameter "n" explicit {{ nat }} (n\
                  arity (prod _ (app [a, {{ 0 }}]) (_\ app [b, n])))) ]
         ]))),
+  std.assert-ok! (coq.typecheck-indt-decl D) "nu_a/nu_b ill-typed",
   coq.env.add-indt D _
 }}.
+Check nu_ka : forall n, nu_b 0 -> nu_a n.
+Check nu_kb : forall n, nu_a 0 -> nu_b n.
 
-End NonUniformParamBuildLimitation.
+End NonUniformParamBuild.
 
 (* ========================================================================== *)
 (*  4. indexed mutual inductives — is_even / is_odd : nat -> Prop.            *)

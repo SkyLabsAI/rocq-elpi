@@ -3512,13 +3512,11 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
             then Declarations.Finite else Declarations.CoFinite in
           let state, nuparams, _nuimpls, arity, gl =
             readback_arity ~depth coq_ctx constraints state arity in
-          if nuparams <> [] then
-            nYI "non uniform parameters in a mutual inductive built from HOAS";
           let e = Context.Rel.Declaration.LocalAssum(name,arity) in
           (match E.look ~depth rest with
            | E.Lam body ->
                collect (push_coq_ctx_local depth e coq_ctx) ~depth:(depth+1)
-                 ((itname,finiteness,arity,gl) :: comps) state body
+                 ((itname,finiteness,nuparams,arity,gl) :: comps) state body
            | _ -> err Pp.(str"minductive: lambda expected"))
       | E.App(c,ksll,[]) when c == mblockc ->
           finish coq_ctx ~depth (List.rev comps) ksll state
@@ -3530,6 +3528,10 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
       if List.length ksls <> ntyps then
         err Pp.(str"mblock: expected "++ int ntyps ++
                 str" constructor lists but got "++ int (List.length ksls));
+      (* Components share one parameter telescope (uniform `params` wrapping the
+         block, plus the non-uniform `nuparams` declared in each component arity).
+         Coq requires them identical across components; we take the first. *)
+      let nuparams = match comps with (_,_,nup,_,_) :: _ -> nup | [] -> [] in
       (* From  Params, Ind1..IndN, NuParams |- kty
          To    Ind1..IndN, Params, NuParams |- kty  (self-refs applied to params) *)
       let subst nupno =
@@ -3560,8 +3562,8 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
             (state,[]) ks in
         let knames, ktypes, kparams, kimpls = CList.split4 names_ktypes in
         let sigma = get_sigma state in
-        let ktypes = CList.map3 (check_consistency_and_drop_nuparams sigma []) knames kparams ktypes in
-        let ktypes = ktypes |> List.map (fun t -> EC.Vars.substl (subst 0) t) in
+        let ktypes = CList.map3 (check_consistency_and_drop_nuparams sigma nuparams) knames kparams ktypes in
+        let ktypes = ktypes |> List.map (fun t -> EC.Vars.substl (subst (List.length nuparams)) t) in
         let kimpls = List.map (fun x -> impls @ x) kimpls in
         state, (knames, ktypes), kimpls, List.concat (List.rev gls_rev) in
       let state, per_ind =
@@ -3571,19 +3573,19 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
       let constructors = List.map (fun (knkt,_,_) -> knkt) per_ind in
       let ks_impls_all = List.map (fun (_,ki,_) -> ki) per_ind in
       let gls_k = List.concat_map (fun (_,_,g) -> g) per_ind in
-      let indnames = List.map (fun (n,_,_,_) -> n) comps in
-      let arities = List.map (fun (_,_,a,_) -> a) comps in
-      let finiteness = (fun (_,f,_,_) -> f) (List.hd comps) in
-      let gl_ar = List.concat_map (fun (_,_,_,g) -> g) comps in
+      let indnames = List.map (fun (n,_,_,_,_) -> n) comps in
+      let arities = List.map (fun (_,_,_,a,_) -> a) comps in
+      let finiteness = (fun (_,f,_,_,_) -> f) (List.hd comps) in
+      let gl_ar = List.concat_map (fun (_,_,_,_,g) -> g) comps in
       let the_types =
-        List.rev_map (fun (n,_,a,_) ->
-          Context.Rel.Declaration.LocalAssum(nameR n, EC.it_mkProd_or_LetIn a params)) comps in
+        List.rev_map (fun (n,_,_,a,_) ->
+          Context.Rel.Declaration.LocalAssum(nameR n, EC.it_mkProd_or_LetIn a (List.append nuparams params))) comps in
       let state, (melims, mind, ubinders, uctx) =
         let private_ind = false in
         let state, poly, cumulative, udecl, variances =
           poly_cumul_udecl_variance_of_options state coq_ctx.options in
         let env_ar_params =
-          (Global.env ()) |> EC.push_rel_context the_types |> EC.push_rel_context params in
+          (Global.env ()) |> EC.push_rel_context the_types |> EC.push_rel_context (List.append nuparams params) in
         let state = minimize_universes state in
         let used =
           List.fold_left (fun acc (_,kt) ->
@@ -3601,11 +3603,11 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
                 (Univ.Level.Set.union (universes_of_term state t) (universes_of_term state b))
             | LocalAssum(_,t) ->
               Univ.Level.Set.union acc (universes_of_term state t))
-            used params in
+            used (List.append nuparams params) in
         let sigma = restricted_sigma_of used state in
         state, comInductive_interp_mutual_inductive_constr
           ~ntyps ~sigma ~template:(Some false) ~udecl ~variances
-          ~ctx_params:params
+          ~ctx_params:(List.append nuparams params)
           ~indnames ~arities ~constructors
           ~env_ar_params ~cumulative ~poly ~private_ind
           ~finite:finiteness |> comInductive_interp_mutual_inductive_constr_post
