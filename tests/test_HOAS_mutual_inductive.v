@@ -24,9 +24,9 @@ Elpi Query lp:{{
   coq.locate "even" (indt I),
   coq.env.indt-decl I D,
   std.assert! (D =
-    minductive-block (
-      minductive "even" tt (arity (sort _)) (e\
-      minductive "odd"  tt (arity (sort _)) (o\
+    minductive-block tt (
+      minductive "even" (arity (sort _)) (e\
+      minductive "odd"  (arity (sort _)) (o\
         mblock [
           [ constructor "even_O" (arity e),
             constructor "even_S" (arity (prod _ o (_\ e))) ],
@@ -46,9 +46,9 @@ Elpi Query lp:{{
 (* BUILD a mutual block from scratch, typecheck it, and add it. *)
 Elpi Query lp:{{
   D =
-    minductive-block (
-      minductive "eo_even" tt (arity (sort (typ _))) (e\
-      minductive "eo_odd"  tt (arity (sort (typ _))) (o\
+    minductive-block tt (
+      minductive "eo_even" (arity (sort (typ _))) (e\
+      minductive "eo_odd"  (arity (sort (typ _))) (o\
         mblock [
           [ constructor "eo_O"  (arity e),
             constructor "eo_ES" (arity (prod `x` o (_\ e))) ],
@@ -81,9 +81,9 @@ Elpi Query lp:{{
   coq.env.indt-decl I D,
   std.assert! (D =
     parameter "A" explicit (sort _) (a\
-      minductive-block (
-        minductive "tree"   tt (arity (sort _)) (tree\
-        minductive "forest" tt (arity (sort _)) (forest\
+      minductive-block tt (
+        minductive "tree"   (arity (sort _)) (tree\
+        minductive "forest" (arity (sort _)) (forest\
           mblock [
             [ constructor "node"
                 (arity (prod _ a (_\ prod _ forest (_\ tree)))) ],
@@ -98,9 +98,9 @@ Elpi Query lp:{{
 Elpi Query lp:{{
   D =
     parameter "A" explicit (sort (typ _)) (a\
-      minductive-block (
-        minductive "rt_tree"   tt (arity (sort (typ _))) (tree\
-        minductive "rt_forest" tt (arity (sort (typ _))) (forest\
+      minductive-block tt (
+        minductive "rt_tree"   (arity (sort (typ _))) (tree\
+        minductive "rt_forest" (arity (sort (typ _))) (forest\
           mblock [
             [ constructor "rt_node"
                 (arity (prod `x` a (_\ prod `c` forest (_\ tree)))) ],
@@ -138,9 +138,9 @@ Elpi Query lp:{{
   coq.env.indt-decl I D,
   std.assert! (D =
     parameter "A" explicit (sort _) (a\
-      minductive-block (
-        minductive "mt" tt (parameter "n" explicit {{ nat }} (_\ arity (sort _))) (mt\
-        minductive "mf" tt (parameter "n" explicit {{ nat }} (_\ arity (sort _))) (mf\
+      minductive-block tt (
+        minductive "mt" (parameter "n" explicit {{ nat }} (_\ arity (sort _))) (mt\
+        minductive "mf" (parameter "n" explicit {{ nat }} (_\ arity (sort _))) (mf\
           mblock [
             [ constructor "tk"
                 (parameter "n" explicit {{ nat }} (n\
@@ -174,9 +174,9 @@ Module NonUniformParamBuild.
 
 Elpi Query lp:{{
   D =
-    minductive-block (
-      minductive "nu_a" tt (parameter "n" explicit {{ nat }} (_\ arity (sort (typ _)))) (a\
-      minductive "nu_b" tt (parameter "n" explicit {{ nat }} (_\ arity (sort (typ _)))) (b\
+    minductive-block tt (
+      minductive "nu_a" (parameter "n" explicit {{ nat }} (_\ arity (sort (typ _)))) (a\
+      minductive "nu_b" (parameter "n" explicit {{ nat }} (_\ arity (sort (typ _)))) (b\
         mblock [
           [ constructor "nu_ka"
               (parameter "n" explicit {{ nat }} (n\
@@ -211,9 +211,9 @@ Elpi Query lp:{{
   coq.locate "ev" (indt I),
   coq.env.indt-decl I D,
   std.assert! (D =
-    minductive-block (
-      minductive "ev" tt (arity (prod _ {{ nat }} (_\ sort _))) (ev\
-      minductive "od" tt (arity (prod _ {{ nat }} (_\ sort _))) (od\
+    minductive-block tt (
+      minductive "ev" (arity (prod _ {{ nat }} (_\ sort _))) (ev\
+      minductive "od" (arity (prod _ {{ nat }} (_\ sort _))) (od\
         mblock [
           [ constructor "ev_O" (arity (app [ev, {{ 0 }}])),
             constructor "ev_S"
@@ -274,7 +274,7 @@ Elpi Query lp:{{
   coq.env.indt I _ NParams _ _ _ _,
   std.assert! (NParams = 2) "tp_a should have 2 parameters",
   coq.env.indt-decl I D,
-  std.assert! (D = parameter "A" _ _ (_\ parameter "B" _ _ (_\ minductive-block _)))
+  std.assert! (D = parameter "A" _ _ (_\ parameter "B" _ _ (_\ minductive-block _ _)))
     "tp_a/tp_b: expected two parameters wrapping the block",
   std.assert-ok! (coq.typecheck-indt-decl D) "tp_a/tp_b ill-typed"
 }}.
@@ -305,9 +305,9 @@ Elpi Query lp:{{
   std.assert! (Da = Db) "t3a vs t3b: blocks differ",
   std.assert! (Db = Dc) "t3b vs t3c: blocks differ",
   std.assert! (Da =
-    minductive-block (minductive "t3a" tt _ (_\
-                      minductive "t3b" tt _ (_\
-                      minductive "t3c" tt _ (_\ mblock _))))) "t3: expected 3-component block",
+    minductive-block tt (minductive "t3a" _ (_\
+                      minductive "t3b" _ (_\
+                      minductive "t3c" _ (_\ mblock _))))) "t3: expected 3-component block",
   std.assert-ok! (coq.typecheck-indt-decl Da) "t3 block ill-typed"
 }}.
 
@@ -348,9 +348,9 @@ Module ParamIndexBuild.
 Elpi Query lp:{{
   D =
     parameter "A" explicit (sort (typ _)) (a\
-      minductive-block (
-        minductive "pix_a" tt (arity (prod `n` {{ nat }} (_\ sort (typ _)))) (pa\
-        minductive "pix_b" tt (arity (prod `n` {{ nat }} (_\ sort (typ _)))) (pb\
+      minductive-block tt (
+        minductive "pix_a" (arity (prod `n` {{ nat }} (_\ sort (typ _)))) (pa\
+        minductive "pix_b" (arity (prod `n` {{ nat }} (_\ sort (typ _)))) (pb\
           mblock [
             [ constructor "pix_a0" (arity (app [pa, {{ 0 }}])),
               constructor "pix_aS"
@@ -381,9 +381,9 @@ Module WellFormedness.
 (* Two `minductive` binders but only ONE constructor list. *)
 Fail Elpi Query lp:{{
   Bad =
-    minductive-block (
-      minductive "wf_a" tt (arity (sort (typ _))) (a\
-      minductive "wf_b" tt (arity (sort (typ _))) (b\
+    minductive-block tt (
+      minductive "wf_a" (arity (sort (typ _))) (a\
+      minductive "wf_b" (arity (sort (typ _))) (b\
         mblock [
           [ constructor "wf_ka" (arity a) ]      % <-- missing the list for wf_b
         ]))),
@@ -393,8 +393,8 @@ Fail Elpi Query lp:{{
 (* One `minductive` binder but TWO constructor lists. *)
 Fail Elpi Query lp:{{
   Bad =
-    minductive-block (
-      minductive "wf_c" tt (arity (sort (typ _))) (c\
+    minductive-block tt (
+      minductive "wf_c" (arity (sort (typ _))) (c\
         mblock [
           [ constructor "wf_kc" (arity c) ],
           [ ]                                     % <-- one extra, no component

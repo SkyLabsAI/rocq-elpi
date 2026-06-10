@@ -131,9 +131,9 @@ external symbol end-record  : record-decl.
 % Shared (uniform) parameters wrap the whole block via the `parameter` ("2")
 % variant; non-uniform parameters and indices live in each component arity.
 kind mind-block type.
-external symbol minductive-block : mind-block -> indt-decl.                                   % entry (peer of `inductive`/`record`)
-external symbol minductive       : id -> bool -> arity -> (term -> mind-block) -> mind-block. % chain (one component: id/kind/arity, binds self-ref)
-external symbol mblock           : list (list indc-decl) -> mind-block.                       % terminator (one constructor-list per component)
+external symbol minductive-block : bool -> mind-block -> indt-decl.                  % entry (tt = inductive, ff = co-inductive; shared by the whole block)
+external symbol minductive       : id -> arity -> (term -> mind-block) -> mind-block. % chain (one component: id/arity, binds self-ref)
+external symbol mblock           : list (list indc-decl) -> mind-block.              % terminator (one constructor-list per component)
 
 % Example.
 % Remark that A is a regular parameter; y is a non-uniform parameter and t
