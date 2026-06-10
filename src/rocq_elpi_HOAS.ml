@@ -3150,7 +3150,7 @@ let inductivec = E.Constants.declare_global_symbol "inductive"
 let recordc = E.Constants.declare_global_symbol "record"
 let fieldc = E.Constants.declare_global_symbol "field"
 let end_recordc = E.Constants.declare_global_symbol "end-record"
-(* mutual inductive blocks (Proposal 2, see mutind.md / coq-arg-HOAS.elpi) *)
+(* mutual inductive blocks (see coq-arg-HOAS.elpi) *)
 let minductive_blockc = E.Constants.declare_global_symbol "minductive-block"
 let minductivec = E.Constants.declare_global_symbol "minductive"
 let mblockc = E.Constants.declare_global_symbol "mblock"
@@ -3789,9 +3789,9 @@ let hoas_ind2lp ~depth coq_ctx state { params; decl } =
     )
 ;;
 
-(* --- mutual inductive blocks (Proposal 2, see mutind.md) ------------------ *)
+(* --- mutual inductive blocks ---------------------------------------------- *)
 let in_elpi_indtdecl_minductive_block state find block =
-  (* finiteness is shared by the whole block (Coq requires it uniform) *)
+  (* finiteness is shared by the whole block (Rocq requires it uniform) *)
   let coind = not (Declarations.CoFinite = find) in
   E.mkApp minductive_blockc (in_elpi_bool state coind) [block]
 let in_elpi_indtdecl_minductive id arity rest =

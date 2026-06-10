@@ -163,7 +163,7 @@ external symbol field       : field-attributes -> id -> term -> (term -> record-
 external symbol end-record  : record-decl.
 
 % --------------------------------------------------------------------------
-% Mutual inductive blocks (Proposal 2, see mutind.md).
+% Mutual inductive blocks
 % Mirrors the shipped `mfix` design (coq-HOAS.elpi) one constructor at a time:
 %   mfix-block <-> mind-block ;  mfix <-> minductive-block ;
 %   mfix-ty <-> minductive ;     mfix-bo <-> mblock.

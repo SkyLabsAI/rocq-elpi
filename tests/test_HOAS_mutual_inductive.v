@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------------- *)
-(*  Tests for the MUTUAL INDUCTIVE HOAS (see mutind.md).                      *)
+(*  Tests for the MUTUAL INDUCTIVE HOAS                                       *)
 (* -------------------------------------------------------------------------- *)
 
 From elpi Require Import elpi.
@@ -370,11 +370,9 @@ Check pix_bS : forall A n, pix_a A n -> pix_b A (S n).
 End ParamIndexBuild.
 
 (* ========================================================================== *)
-(*  5. well-formedness — the validation gap flagged in the mutind.md review.   *)
-(*     `mblock` must have exactly one constructor-list per `minductive`.       *)
-(*     (B) PERMANENT [Fail]: malformed blocks must be REJECTED.  Today they     *)
-(*     fail at readback (feature absent); once implemented they must fail at     *)
-(*     the arity check.  Either way the command fails, so [Fail] stays.         *)
+(*  5. well-formedness                                                        *)
+(*     `mblock` must have exactly one constructor-list per `minductive`.      *)
+(*     PERMANENT [Fail]: malformed blocks must be REJECTED.                   *)
 (* ========================================================================== *)
 Module WellFormedness.
 
