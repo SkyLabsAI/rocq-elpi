@@ -986,6 +986,13 @@ let in_elpi_mfix names_rnos_tys focus_idx bodies =
 
 let primitivec   = E.Constants.declare_global_symbol "primitive"
 
+(* Keep blocks structural, including their hidden capture binders. Expanding
+   captures into ordinary lets/runs loses their identity-mode forcing semantics. *)
+let pblockc = E.Constants.declare_global_symbol "pblock"
+let prunc = E.Constants.declare_global_symbol "prun"
+let pblock_bodyc = E.Constants.declare_global_symbol "pblock-body"
+let pblock_entryc = E.Constants.declare_global_symbol "pblock-entry"
+
 
 type pstring = Pstring.t
 let pp_pstring = Pstring.to_string
@@ -1736,6 +1743,35 @@ let rec constr2lp coq_ctx ~calldepth ~depth state t =
          let state, t = aux ~depth env state t in
          let state, p = in_elpi_primitive ~depth state (Projection p) in
          state, in_elpi_app ~depth p [|t|]
+    | C.PBlock (u, ty, entries, body) ->
+         let state, u, gl = uinstance.API.Conversion.embed ~depth state
+           (EC.EInstance.kind sigma u) in
+         gls := gl @ !gls;
+         let state, ty = aux ~depth env state ty in
+         let rec captures i ~depth env state =
+           if i = Array.length entries then
+             let state, body = aux ~depth env state body in
+             state, E.mkApp pblock_bodyc body []
+           else
+             let entry = entries.(i) in
+             let ty = EC.it_mkProd_or_LetIn entry.C.pbe_type entry.C.pbe_context in
+             let value = EC.it_mkLambda_or_LetIn entry.C.pbe_value entry.C.pbe_context in
+             let state, lty = aux ~depth env state ty in
+             let state, value = aux ~depth env state value in
+             let annot = Context.make_annot Anonymous entry.C.pbe_relevance in
+             let env = EC.push_rel (Context.Rel.Declaration.LocalAssum (annot, ty)) env in
+             let state, rest = captures (i + 1) ~depth:(depth + 1) env state in
+             state, E.mkApp pblock_entryc (CD.of_int (List.length entry.C.pbe_context))
+               [lty; value; E.mkLam rest]
+         in
+         let state, body = captures 0 ~depth env state in
+         state, E.mkApp pblockc u [ty; body]
+    | C.PRun (ty, result_ty, blocked, cont) ->
+         let state, ty = aux ~depth env state ty in
+         let state, result_ty = aux ~depth env state result_ty in
+         let state, blocked = aux ~depth env state blocked in
+         let state, cont = aux ~depth env state cont in
+         state, E.mkApp prunc ty [result_ty; blocked; cont]
     | C.CoFix _ -> nYI "HOAS for cofix"
     | x -> in_elpi_primitive_value ~depth state x
   in
@@ -2199,12 +2235,12 @@ let rec of_elpi_ctx ~calldepth syntactic_constraints depth dbl2ctx state initial
 (*   \- proof_ctx                                                    *)
 (* ***************************************************************** *)
 
-and lp2constr ~calldepth syntactic_constraints coq_ctx ~depth state ?(on_ty=false) t =
-  let aux = lp2constr ~calldepth syntactic_constraints coq_ctx in
+and lp2constr ~calldepth syntactic_constraints coq_ctx ~depth state ?(on_ty=false) ?(preserve_lets=false) t =
+  let aux = lp2constr ~calldepth syntactic_constraints coq_ctx ~preserve_lets in
   let aux_lam coq_ctx ~depth s t = match E.look ~depth t with
-  | E.Lam t -> lp2constr ~calldepth syntactic_constraints coq_ctx ~depth:(depth+1) s t
+  | E.Lam t -> lp2constr ~calldepth syntactic_constraints coq_ctx ~preserve_lets ~depth:(depth+1) s t
   | E.UnifVar(r,args) ->
-       lp2constr ~calldepth syntactic_constraints coq_ctx ~depth:(depth+1) s
+       lp2constr ~calldepth syntactic_constraints coq_ctx ~preserve_lets ~depth:(depth+1) s
          (E.mkUnifVar r ~args:(List.map (U.move ~from:depth ~to_:(depth+1)) args @ [E.mkConst depth]) state)
   | _ -> err Pp.(str"HOAS: expecting a lambda, got: " ++ str(pp2string (P.term depth) t))
   in
@@ -2231,6 +2267,46 @@ and lp2constr ~calldepth syntactic_constraints coq_ctx ~depth state ?(on_ty=fals
     | G.ConstructRef x -> state, EC.mkConstructU (x, EC.EInstance.make i), gls
     | G.IndRef x -> state, EC.mkIndU (x, EC.EInstance.make i), gls
     end
+ (* Blocks retain capture contexts rather than expanding their special forcing
+    into ordinary Gallina reduction. Read their closed context telescopes without
+    the let-to-cast shortcut: even a terminal let is part of that context. *)
+  | E.App(c,u,[ty;body]) when pblockc == c ->
+      let state, u, gl0 = uinstance.API.Conversion.readback ~depth state u in
+      let state, ty, gl1 = aux ~depth state ~on_ty:true ty in
+      let rec captures coq_ctx ~depth state body =
+        let read = lp2constr ~calldepth syntactic_constraints coq_ctx ~preserve_lets:true in
+        match E.look ~depth body with
+        | E.App(c,body,[]) when pblock_bodyc == c ->
+            let state, body, gl = read ~depth state body in
+            state, [], body, gl
+        | E.App(c,n,[ty;value;rest]) when pblock_entryc == c ->
+            let state, n, gl0 = API.BuiltInData.int.API.Conversion.readback ~depth state n in
+            if n < 0 then err Pp.(str "Negative block capture context length");
+            let state, ty, gl1 = read ~depth state ~on_ty:true ty in
+            let state, value, gl2 = read ~depth state value in
+            let sigma = get_sigma state in
+            let _, entry_ty = EC.decompose_prod_n_decls sigma n ty in
+            let context, value = EC.decompose_lambda_n_decls sigma n value in
+            let relevance = Retyping.relevance_of_type coq_ctx.env sigma ty in
+            let entry = C.{pbe_context = context; pbe_type = entry_ty;
+              pbe_value = value; pbe_relevance = relevance} in
+            let annot = Context.make_annot Anonymous relevance in
+            let coq_ctx = push_coq_ctx_local depth (Context.Rel.Declaration.LocalAssum (annot,ty)) coq_ctx in
+            let rest = match E.look ~depth rest with
+              | E.Lam rest -> rest
+              | _ -> err Pp.(str "Block capture expects a HOAS lambda") in
+            let state, entries, body, gl3 = captures coq_ctx ~depth:(depth + 1) state rest in
+            state, entry :: entries, body, gl0 @ gl1 @ gl2 @ gl3
+        | _ -> err Pp.(str "Expected a block body or capture")
+      in
+      let state, entries, body, gl2 = captures coq_ctx ~depth state body in
+      state, EC.mkPBlock (EC.EInstance.make u, ty, Array.of_list entries, body), gl0 @ gl1 @ gl2
+  | E.App(c,ty,[result_ty;blocked;cont]) when prunc == c ->
+      let state, ty, gl1 = aux ~depth state ~on_ty:true ty in
+      let state, result_ty, gl2 = aux ~depth state ~on_ty:true result_ty in
+      let state, blocked, gl3 = aux ~depth state blocked in
+      let state, cont, gl4 = aux ~depth state cont in
+      state, EC.mkPRun (ty,result_ty,blocked,cont), gl1 @ gl2 @ gl3 @ gl4
  (* binders *)
   | E.App(c,name,[s;t]) when lamc == c || prodc == c ->
       let name = in_coq_fresh_annot_name ~depth ~coq_ctx depth name in
@@ -2245,7 +2321,7 @@ and lp2constr ~calldepth syntactic_constraints coq_ctx ~depth state ?(on_ty=fals
       let state, b, gl2 = aux ~depth state b in
       let coq_ctx = push_coq_ctx_local depth (Context.Rel.Declaration.LocalDef(name,b,s)) coq_ctx in
       let state, t, gl3 = aux_lam coq_ctx ~depth state t in
-      if EC.eq_constr (get_sigma state) t (EC.mkRel 1) then
+      if not preserve_lets && EC.eq_constr (get_sigma state) t (EC.mkRel 1) then
         state, EC.mkCast (b,Constr.DEFAULTcast,s), gl1 @ gl2 @ gl3
       else
         state, EC.mkLetIn (name,b,s,t), gl1 @ gl2 @ gl3

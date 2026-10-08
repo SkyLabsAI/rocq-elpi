@@ -45,6 +45,14 @@ external symbol mfix    : int -> int -> mfix-block -> term.  % mfix block-idx rn
 
 external symbol primitive : primitive-value -> term.
 
+% Primitive reduction boundaries. A block body is a chain of scoped captures,
+% ending in pblock-body. Each capture carries its context length, closed carrier
+% telescope, closed blocked-value telescope, and continuation under its binder.
+external symbol pblock : univ-instance -> term -> term -> term.
+external symbol pblock-body : term -> term.
+external symbol pblock-entry : int -> term -> term -> (term -> term) -> term.
+external symbol prun : term -> term -> term -> term -> term.
+
 kind mfix-block type.
 external symbol mfix-ty : name -> int -> term -> (term -> mfix-block) -> mfix-block. % mfix-ty name rno ty rest
 external symbol mfix-bo : list term -> mfix-block.
