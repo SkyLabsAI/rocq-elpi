@@ -570,3 +570,20 @@ The code of the Rocq plugin is at the root of the repository in the [src](src/),
 [elpi](elpi/) and [theories](theories/) directories.
 
 The [apps](apps/) directory contains client applications written in Rocq-Elpi.
+
+#### Portable source identities (development dependency)
+
+Parsed Elpi files and inline Rocq locations beneath a registered loadpath use
+stable `coq://<logical-path>/<relative-file>` identities in compiled libraries.
+Diagnostics and runtime `loc.fields` resolve these identities using the current
+loadpaths, including installed libraries. Location-derived output files are
+written beside the current source. Missing or ambiguous sources retain their logical names;
+files outside registered loadpaths retain their original names.
+
+This implementation depends on the development API in
+[SkyLabsAI/elpi#2](https://github.com/SkyLabsAI/elpi/pull/2). The OPAM package
+requires `elpi.dev` and pins the API commit stacked on
+[SkyLabsAI/elpi#1](https://github.com/SkyLabsAI/elpi/pull/1), so the pin also
+includes the Dune 3.0 workspace path mapping fix. Composed builds must use
+the same Elpi commit in their vendored checkout. A released minimum version
+will replace this development pin once a version containing the API is allocated.

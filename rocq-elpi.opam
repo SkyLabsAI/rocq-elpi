@@ -18,12 +18,15 @@ bug-reports: "https://github.com/LPCIC/coq-elpi/issues"
 depends: [
   "dune" {>= "3.13"}
   "ocaml" {>= "4.10.0"}
-  "elpi" {>= "3.7.1" & < "3.8.0~" | = "dev"}
+  "elpi" {= "dev"}
   "rocq-core" {>= "9.0+rc1" & < "9.3~" | = "dev"}
   "ppx_optcomp"
   "ocaml-lsp-server" {with-dev-setup}
   "odoc" {with-doc}
   "rocq-stdlib" {with-doc}
+]
+pin-depends: [
+  ["elpi.dev" "git+https://github.com/SkyLabsAI/elpi.git#d1ae9d24415a065313f79140e6946482284870a7"]
 ]
 build: [
   ["dune" "subst"] {dev}
