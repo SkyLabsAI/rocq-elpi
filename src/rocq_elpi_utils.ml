@@ -12,12 +12,24 @@ let interp_hoas = API.RawData.new_hoas_descriptor ()
 let interp_state = API.State.new_state_descriptor ()
 
 let source_name_of_fname = function
-  | Loc.InFile { file } -> Format.asprintf "%s" file 
+  | Loc.InFile { file } -> Rocq_elpi_sources.logical_name file
   | Loc.ToplevelInput -> "(stdin)" 
 
 let fname_of_source_name ~dirpath s =
   if s = "(stdin)" then Loc.ToplevelInput
-  else Loc.InFile { dirpath; file = s }
+  else Loc.InFile { dirpath; file = Rocq_elpi_sources.physical_name s }
+
+(* Preserve project-relative filenames for runtime IO, while installed sources
+   outside the current directory keep their physical absolute names. *)
+let runtime_source_name name =
+  let filename = Rocq_elpi_sources.physical_name name in
+  let root = Filename.concat (Sys.getcwd ()) "" in
+  let n = String.length root in
+  if String.length filename >= n && String.sub filename 0 n = root then
+    "./" ^ String.sub filename n (String.length filename - n)
+  else filename
+
+let () = API.Setup.set_source_name_resolver runtime_source_name
 
 let of_coq_loc l =
   let client_payload =

@@ -465,7 +465,8 @@ let private__units_from_file ~elpi ~base ~loc x : cunit list =
 let private__units_from_string ~elpi ~base ~loc xloc x : cunit list =
   handle_elpi_compiler_errors ~loc (fun () ->
     let flags = cc_flags () in
-    let ast = EP.program_from ~elpi ~loc:xloc ~digest:(Digest.string x) (Lexing.from_string x) in
+    let cwd = Filename.dirname (Rocq_elpi_sources.physical_name xloc.API.Ast.Loc.source_name) in
+    let ast = EP.program_from ~elpi ~cwd ~loc:xloc ~digest:(Digest.string x) (Lexing.from_string x) in
     let ast = EC.scope_ast ~elpi ast in
     let _, units_rev =
       List.fold_left (fun (base,acc) ast ->
@@ -634,7 +635,8 @@ let get ?(fail_if_not_exists=false) p =
   let init_file p ~loc (sloc, s) =
   handle_elpi_compiler_errors ~loc begin fun () ->
     let elpi = ensure_initialized () in
-    let ast = EP.program_from ~elpi ~loc:sloc ~digest:(Digest.string s) (Lexing.from_string s) in
+    let cwd = Filename.dirname (Rocq_elpi_sources.physical_name sloc.API.Ast.Loc.source_name) in
+    let ast = EP.program_from ~elpi ~cwd ~loc:sloc ~digest:(Digest.string s) (Lexing.from_string s) in
     let asts = EC.scope_ast ~elpi ast in
      init_file p asts
   end
@@ -901,7 +903,8 @@ let asts_from_string ~loc (sloc,s) : EC.scoped_program list =
   handle_elpi_compiler_errors ~loc (fun () ->
     let elpi = ensure_initialized () in
     let digest = Digest.(string s) in
-    let ast = EP.program_from ~elpi ~loc:sloc ~digest (Lexing.from_string s) in
+    let cwd = Filename.dirname (Rocq_elpi_sources.physical_name sloc.API.Ast.Loc.source_name) in
+    let ast = EP.program_from ~elpi ~cwd ~loc:sloc ~digest (Lexing.from_string s) in
     EC.scope_ast ~elpi ast)
 
   let accumulate_ast_to_X ~get_and_compile ~accumulate ~loc ~x ~what ast =
@@ -1147,7 +1150,8 @@ module Synterp : Programs = struct
     let init () =
       API.Setup.init ~versions
         ~state:synterp_state ~hoas:synterp_hoas
-        ~quotations:synterp_quotations ~builtins:[elpi_builtins;coq_synterp_builtins] ~file_resolver ()
+        ~quotations:synterp_quotations ~builtins:[elpi_builtins;coq_synterp_builtins]
+        ~file_resolver ~source_name:Rocq_elpi_sources.logical_name ()
   end
   include SourcesStorage(S)
 
@@ -1171,7 +1175,8 @@ module Interp : Programs = struct
     let init () =
       API.Setup.init ~versions
         ~state:interp_state ~hoas:interp_hoas
-        ~quotations:interp_quotations ~builtins:[elpi_builtins;coq_interp_builtins] ~file_resolver ()
+        ~quotations:interp_quotations ~builtins:[elpi_builtins;coq_interp_builtins]
+        ~file_resolver ~source_name:Rocq_elpi_sources.logical_name ()
   end)
 
 let () = Rocq_elpi_builtins.set_accumulate_to_db_interp (fun ~loc clauses_to_add ->
