@@ -2086,14 +2086,29 @@ let evar_arity k state =
   let filtered_hyps = Evd.evar_filtered_hyps info in
   List.length (Environ.named_context_of_val filtered_hyps)
 
-(* This is random: u < v /\ u <= FOO.123 /\ FOO.123 <= u ===>
-                   u < FOO.123
-   even if u is a binder, and FOO.123 is not.
-   Hence this is disabled. *)
-let minimize_universes state = state (*
+(* Preserve both the declared binders and the levels used by the terms: Elpi
+   may reuse those terms after the declaration. Protect flexible levels with
+   rigid representatives, so that minimization cannot strengthen their
+   constraints (e.g. instantiate them with Set). Afterwards restore the original
+   levels as equality constraints; restriction can discard the representatives.
+   Unused variables can still be minimized before the expensive restriction. *)
+let minimize_universes ~udecl ~used state =
+  let declared, _ = dest_udecl udecl in
+  let binders = List.fold_right Univ.Level.Set.add declared used in
+  let state = Univ.Level.Set.fold (fun u state ->
+    let sigma = get_sigma state in
+    let universe = Univ.Universe.make u in
+    if Evd.is_flexible_level sigma u &&
+       Univ.Universe.equal universe (UState.nf_universe (Evd.ustate sigma) universe) then
+      let state, (_, representative) = new_univ_level_variable state in
+      add_universe_constraint state
+        (UnivProblem.UEq (Sorts.sort_of_univ universe, Sorts.sort_of_univ representative))
+    else state) binders state in
   S.update engine state (fun ({ sigma } as x) ->
-    { x with sigma = Evd.minimize_universes sigma })
-*)
+    let sigma = Evd.minimize_universes sigma in
+    let ustate = UState.constrain_variables binders (Evd.ustate sigma) in
+    let sigma = Evd.nf_univ_variables (Evd.set_universe_context sigma ustate) in
+    { x with sigma })
 
 let is_sort ~depth x =
   match E.look ~depth x with
@@ -3719,25 +3734,23 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
         LocalAssum(name, EConstr.it_mkProd_or_LetIn arity (nuparams @ params)) in
       let env_ar_params = (Global.env ()) |> EC.push_rel the_type |> EC.push_rel_context (nuparams @ params) in
 
-    (* restruction to used universes *)
-    let state = minimize_universes state in
-    let used =
-      List.fold_left (fun acc t ->
-          Univ.Level.Set.union acc
-            (universes_of_term state t))
-        (universes_of_term state arity) ktypes in
-    let used =
-      let open Context.Rel.Declaration in
-      List.fold_left (fun acc -> function
-        | (LocalDef(_,t,b)) ->
-          Univ.Level.Set.union acc
-           (Univ.Level.Set.union
-            (universes_of_term state t)
-            (universes_of_term state b))
-        | (LocalAssum(_,t)) ->
-          Univ.Level.Set.union acc
-            (universes_of_term state t))
-        used (nuparams @ params) in
+      (* Restriction to used universes. *)
+      let used_universes state =
+        let used = List.fold_left (fun acc t ->
+            Univ.Level.Set.union acc (universes_of_term state t))
+          (universes_of_term state arity) ktypes in
+        let open Context.Rel.Declaration in
+        List.fold_left (fun acc -> function
+          | LocalDef(_,t,b) ->
+            Univ.Level.Set.union acc
+              (Univ.Level.Set.union
+                (universes_of_term state t)
+                (universes_of_term state b))
+          | LocalAssum(_,t) ->
+            Univ.Level.Set.union acc (universes_of_term state t))
+          used (nuparams @ params) in
+      let state = minimize_universes ~udecl ~used:(used_universes state) state in
+      let used = Univ.Level.Set.union (used_universes state) (universes_of_udecl state udecl) in
       let sigma = restricted_sigma_of used state in
 
       state, comInductive_interp_mutual_inductive_constr
@@ -3870,16 +3883,14 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
       let env_ar_params =
         let env_ar = List.fold_left (fun env ind_type -> EC.push_rel ind_type env) (Global.env ()) ind_types in
         EC.push_rel_context params env_ar in
-      let state = minimize_universes state in
-      let used =
-        List.fold_left (fun acc t ->
+      let used_universes state =
+        let used = List.fold_left (fun acc t ->
           Univ.Level.Set.union acc (universes_of_term state t))
           Univ.Level.Set.empty arities in
-      let used =
-        List.fold_left (fun acc (_, ktypes) ->
-          List.fold_left (fun acc t -> Univ.Level.Set.union acc (universes_of_term state t)) acc ktypes)
-          used constructors in
-      let used =
+        let used =
+          List.fold_left (fun acc (_, ktypes) ->
+            List.fold_left (fun acc t -> Univ.Level.Set.union acc (universes_of_term state t)) acc ktypes)
+            used constructors in
         let open Context.Rel.Declaration in
         List.fold_left (fun acc -> function
           | LocalDef(_,t,b) ->
@@ -3887,6 +3898,8 @@ let lp2inductive_entry ~depth coq_ctx constraints state t =
                 (Univ.Level.Set.union (universes_of_term state t) (universes_of_term state b))
           | LocalAssum(_,t) -> Univ.Level.Set.union acc (universes_of_term state t))
           used params in
+      let state = minimize_universes ~udecl ~used:(used_universes state) state in
+      let used = Univ.Level.Set.union (used_universes state) (universes_of_udecl state udecl) in
       let sigma = restricted_sigma_of used state in
       state, comInductive_interp_mutual_inductive_constr
         ~sigma

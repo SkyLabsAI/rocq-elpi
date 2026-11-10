@@ -2668,7 +2668,12 @@ Supported attributes:
 |})))))),
   (fun id body types opaque _ ~depth {options} _ -> grab_global_env__drop_sigma_univs_if_option_is_set options "coq.env.add-const" (fun state ->
     let local_bkind = if options.local = Some true then Some Glob_term.Explicit else None in
-    let state = minimize_universes state in
+    let state, poly, cumul, udecl, _ = poly_cumul_udecl_variance_of_options state options in
+    let used = List.fold_left (fun used -> function
+      | B.Unspec -> used
+      | B.Given t -> Univ.Level.Set.union used (universes_of_term state t))
+      Univ.Level.Set.empty [body; types] in
+    let state = minimize_universes ~udecl ~used state in
     (* Maybe: UState.nf_universes on body and type *)
      match body with
      | B.Unspec -> (* axiom *)
@@ -2697,7 +2702,6 @@ Supported attributes:
             if not (is_ground sigma ty) then
               err Pp.(str"coq.env.add-const: the type must be ground. Did you forge to call coq.typecheck-indt-decl?");
              Some ty in
-       let state, poly, cumul, udecl, _ = poly_cumul_udecl_variance_of_options state options in
        if cumul then err Pp.(str"coq.env.add-const: unsupported attribute @udecl-cumul! or @univpoly-cumul!");
        let kind = Decls.(IsDefinition Definition) in
        let scope = if Option.has_some local_bkind
