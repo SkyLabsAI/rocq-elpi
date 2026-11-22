@@ -1,6 +1,6 @@
 (rocq.theory
  (name elpi.apps.eltac.examples)
  (generate_project_file)
- (theories elpi elpi.apps.eltac))
+ (theories rocq-elpi rocq-elpi.apps.eltac))
 
 (include_subdirs qualified)

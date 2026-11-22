@@ -1,8 +1,10 @@
 (rocq.theory
  (name elpi.apps.rbuild.elpi)
+ (public_name rocq-elpi.apps.rbuild.files)
  (package rocq-elpi)
+ (legacy_install)
  (generate_project_file)
- (theories elpi elpi.apps.coercion))
+ (theories rocq-elpi rocq-elpi.apps.coercion))
 
 (rule
  (target dummy.v)

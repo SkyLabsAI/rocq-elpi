@@ -1,8 +1,9 @@
 (rocq.theory
  (name elpi.apps.derive.tests)
+ (public_name rocq-elpi-tests.apps.derive)
  (package rocq-elpi-tests)
  (generate_project_file)
  (flags :standard -w -default-output-directory)
- (theories elpi elpi.apps.derive))
+ (theories rocq-elpi rocq-elpi.apps.derive))
 
 (include_subdirs qualified)

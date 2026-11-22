@@ -1,9 +1,11 @@
 (rocq.theory
  (name elpi.apps.tc)
+ (public_name rocq-elpi.apps.tc)
  (package rocq-elpi)
+ (legacy_install)
  (generate_project_file)
  (flags -w -all -w -elpi)
- (theories elpi elpi.apps.tc.elpi)
+ (theories rocq-elpi rocq-elpi.apps.tc.files)
  (plugins rocq-elpi.tc))
 
 (include_subdirs qualified)

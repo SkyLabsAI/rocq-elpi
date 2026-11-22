@@ -1,7 +1,8 @@
 (rocq.theory
  (name elpi.apps.coercion.tests)
+ (public_name rocq-elpi-tests.apps.coercion)
  (package rocq-elpi-tests)
  (generate_project_file)
- (theories elpi elpi.apps.coercion))
+ (theories rocq-elpi rocq-elpi.apps.coercion))
 
 (include_subdirs qualified)

@@ -1,8 +1,9 @@
 (rocq.theory
  (name elpi.xml.tests)
+ (public_name rocq-elpi-xml-tests)
  (package rocq-elpi-xml-tests)
  (generate_project_file)
- (theories elpi elpi.xml))
+ (theories rocq-elpi rocq-elpi-xml))
 
 ; work around missing dune support for Extra Dependency 
 ; https://github.com/ocaml/dune/pull/9591

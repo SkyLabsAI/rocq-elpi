@@ -1,7 +1,12 @@
 (rocq.theory
  (name elpi.apps.rbuild)
+ (public_name rocq-elpi.apps.rbuild)
  (package rocq-elpi)
+ (legacy_install)
  (generate_project_file)
- (theories elpi elpi.apps.rbuild.elpi elpi.apps.derive))
+ (theories
+  rocq-elpi
+  rocq-elpi.apps.rbuild.files
+  rocq-elpi.apps.derive))
 
 (include_subdirs qualified)

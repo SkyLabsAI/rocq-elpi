@@ -1,9 +1,10 @@
 (rocq.theory
  (name elpi.apps.tc.tests)
+ (public_name rocq-elpi-tests.apps.tc)
  (package rocq-elpi-tests)
  (generate_project_file)
  (flags :standard -async-proofs-cache force)
- (theories elpi elpi.apps.tc))
+ (theories rocq-elpi rocq-elpi.apps.tc))
 
 (include_subdirs qualified)
 (dirs :standard \ WIP)

@@ -1,7 +1,8 @@
 (rocq.theory
  (name elpi.apps.locker.tests)
+ (public_name rocq-elpi-tests.apps.locker)
  (package rocq-elpi-tests)
  (generate_project_file)
- (theories elpi elpi.apps.locker))
+ (theories rocq-elpi rocq-elpi.apps.locker))
 
 (include_subdirs qualified)

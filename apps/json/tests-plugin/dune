@@ -1,8 +1,9 @@
 (rocq.theory
  (name elpi.json.tests)
+ (public_name rocq-elpi-json-tests)
  (package rocq-elpi-json-tests)
  (generate_project_file)
- (theories elpi elpi.json))
+ (theories rocq-elpi rocq-elpi-json))
 
 ; work around missing dune support for Extra Dependency 
 ; https://github.com/ocaml/dune/pull/9591

@@ -1,12 +1,14 @@
 (rocq.theory
   ; myExtension.lib is the logical path that can be used in rocq
  (name myExtension.lib)
- (theories elpi)
+ (public_name myExtension.lib)
+ (theories rocq-elpi)
   ; the rocq files in this folder (theories)
   ; will use the plugin defined in src
  (plugins myExtension.plugin)
  (generate_project_file)
- (package myExtension))
+ (package myExtension)
+ (legacy_install))
 
 (include_subdirs qualified)
 

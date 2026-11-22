@@ -1,6 +1,8 @@
 (rocq.theory
  (name elpi.json)
- (theories elpi_elpi elpi)
+ (public_name rocq-elpi-json)
+ (theories rocq-elpi.files rocq-elpi)
+ (legacy_install)
  (generate_project_file)
  (plugins rocq-elpi-json.elpi_json_plugin)
  (package rocq-elpi-json))

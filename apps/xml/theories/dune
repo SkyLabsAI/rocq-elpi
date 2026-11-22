@@ -1,8 +1,10 @@
 (rocq.theory
  (name elpi.xml)
+ (public_name rocq-elpi-xml)
  (package rocq-elpi-xml)
+ (legacy_install)
  (generate_project_file)
  (plugins rocq-elpi-xml.elpi_xml_plugin)
- (theories elpi_elpi elpi))
+ (theories rocq-elpi.files rocq-elpi))
 
 (include_subdirs qualified)

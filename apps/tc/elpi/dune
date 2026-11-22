@@ -1,8 +1,10 @@
 (rocq.theory
  (name elpi.apps.tc.elpi)
+ (public_name rocq-elpi.apps.tc.files)
  (package rocq-elpi)
+ (legacy_install)
  (generate_project_file)
- (theories elpi))
+ (theories rocq-elpi))
 
 (rule
  (target dummy.v)

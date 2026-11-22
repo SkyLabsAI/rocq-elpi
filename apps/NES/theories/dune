@@ -1,7 +1,9 @@
 (rocq.theory
  (name elpi.apps.NES)
+ (public_name rocq-elpi.apps.NES)
  (package rocq-elpi)
+ (legacy_install)
  (generate_project_file)
- (theories elpi elpi.apps.NES.elpi))
+ (theories rocq-elpi rocq-elpi.apps.NES.files))
 
 (include_subdirs qualified)

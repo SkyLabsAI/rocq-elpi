@@ -2,13 +2,15 @@
   ; myExtension is the logical path that can be used in rocq to import the
   ; the .v in the theories folder
  (name myExtension)
+ (public_name myExtension)
   ; these are the dependencies of the current package
- (theories elpi_elpi elpi myExtension.lib)
+ (theories rocq-elpi.files rocq-elpi myExtension.lib)
   ; the rocq files in this folder (theories)
   ; will use the pluging called ext.plug
   ; the rocq files in this folder use the pluging defined in src/
  (plugins myExtension.plugin)
  (generate_project_file)
- (package myExtension))
+ (package myExtension)
+ (legacy_install))
 
 (include_subdirs qualified)

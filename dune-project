@@ -1,5 +1,5 @@
-(lang dune 3.21)
-(using rocq 0.11)
+(lang dune 3.26)
+(using rocq 0.15)
 (name rocq-elpi)
 (version v3.4.0-10-gb281049)
 ;(generate_opam_files)

@@ -1,8 +1,10 @@
 (rocq.theory
  (name elpi_examples)
+ (public_name rocq-elpi.examples)
  (package rocq-elpi)
+ (legacy_install)
  (generate_project_file)
  (plugins rocq-elpi.elpi)
- (theories elpi))
+ (theories rocq-elpi))
 
 ; (include_subdirs qualified)

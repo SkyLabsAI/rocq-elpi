@@ -1,8 +1,10 @@
 (rocq.theory
  (name elpi.apps.cs)
+ (public_name rocq-elpi.apps.cs)
  (package rocq-elpi)
+ (legacy_install)
  (generate_project_file)
- (theories elpi)
+ (theories rocq-elpi)
  (plugins rocq-elpi.cs))
 
 (include_subdirs qualified)

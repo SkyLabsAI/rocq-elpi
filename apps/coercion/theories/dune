@@ -1,8 +1,10 @@
 (rocq.theory
  (name elpi.apps.coercion)
+ (public_name rocq-elpi.apps.coercion)
  (package rocq-elpi)
+ (legacy_install)
  (generate_project_file)
- (theories elpi)
+ (theories rocq-elpi)
  (plugins rocq-elpi.coercion))
 
 (include_subdirs qualified)

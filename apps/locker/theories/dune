@@ -1,7 +1,9 @@
 (rocq.theory
  (name elpi.apps.locker)
+ (public_name rocq-elpi.apps.locker)
  (package rocq-elpi)
+ (legacy_install)
  (generate_project_file)
- (theories elpi elpi.apps.locker.elpi))
+ (theories rocq-elpi rocq-elpi.apps.locker.files))
 
 (include_subdirs qualified)

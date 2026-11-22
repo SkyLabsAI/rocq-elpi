@@ -9,7 +9,7 @@ license: "LGPL-2.1-or-later"
 homepage: "https://github.com/LPCIC/coq-elpi/apps/json/"
 bug-reports: "https://github.com/LPCIC/coq-elpi/issues"
 depends: [
-  "dune" {>= "3.13"}
+  "dune" {>= "3.26"}
   "rocq-elpi"
   "yojson"
   "odoc" {with-doc}

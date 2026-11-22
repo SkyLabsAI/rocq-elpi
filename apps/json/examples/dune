@@ -1,6 +1,6 @@
 (rocq.theory
  (name elpi.json.examples)
  (generate_project_file)
- (theories elpi elpi.json elpi.json.tests))
+ (theories rocq-elpi rocq-elpi-json rocq-elpi-json-tests))
 
 (include_subdirs qualified)

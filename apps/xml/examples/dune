@@ -1,6 +1,6 @@
 (rocq.theory
  (name elpi.xml.examples)
  (generate_project_file)
- (theories elpi elpi.xml elpi.xml.tests))
+ (theories rocq-elpi rocq-elpi-xml rocq-elpi-xml-tests))
 
 (include_subdirs qualified)

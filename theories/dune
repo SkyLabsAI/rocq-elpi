@@ -1,9 +1,11 @@
 (rocq.theory
  (name elpi)
+ (public_name rocq-elpi)
  (package rocq-elpi)
+ (legacy_install)
  (generate_project_file)
  (plugins rocq-elpi.elpi)
- (theories elpi_elpi))
+ (theories rocq-elpi.files))
 
 (rule
  (target elpi.v)

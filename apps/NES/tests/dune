@@ -1,8 +1,9 @@
 (rocq.theory
  (name elpi.apps.NES.tests)
+ (public_name rocq-elpi-tests.apps.NES)
  (package rocq-elpi-tests)
  (generate_project_file)
- (theories elpi elpi.apps.NES))
+ (theories rocq-elpi rocq-elpi.apps.NES))
 
 (include_subdirs qualified)
 
