@@ -3,6 +3,6 @@
  (public_name rocq-elpi-tests.apps.eltac)
  (package rocq-elpi-tests)
  (generate_project_file)
- (theories rocq-elpi rocq-elpi.apps.eltac))
+ (theories rocq-elpi.apps.eltac))
 
 (include_subdirs qualified)

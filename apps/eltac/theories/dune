@@ -4,6 +4,9 @@
  (package rocq-elpi)
  (legacy_install)
  (generate_project_file)
- (theories rocq-elpi rocq-elpi.apps.derive))
+ (theories
+  rocq-elpi
+  rocq-elpi.apps.derive
+  rocq-elpi.apps.derive.files))
 
 (include_subdirs qualified)

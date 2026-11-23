@@ -3,7 +3,9 @@
  (public_name rocq-elpi-tests.apps.NES)
  (package rocq-elpi-tests)
  (generate_project_file)
- (theories rocq-elpi rocq-elpi.apps.NES))
+ (theories
+  rocq-elpi.apps.NES
+  rocq-elpi.apps.NES.files))
 
 (include_subdirs qualified)
 

@@ -4,7 +4,10 @@
  (package rocq-elpi-tests)
  (generate_project_file)
  (flags :standard -async-proofs-cache force)
- (theories rocq-elpi rocq-elpi.apps.tc))
+ (theories
+  rocq-elpi
+  rocq-elpi.apps.tc
+  rocq-elpi.apps.tc.files))
 
 (include_subdirs qualified)
 (dirs :standard \ WIP)

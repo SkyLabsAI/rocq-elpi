@@ -3,7 +3,9 @@
  (public_name rocq-elpi-tests)
  (generate_project_file)
  (plugins rocq-elpi.elpi)
- (theories rocq-elpi))
+ (theories
+  rocq-elpi
+  rocq-elpi.files))
 
 (include_subdirs qualified)
 

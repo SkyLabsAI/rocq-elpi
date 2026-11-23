@@ -5,6 +5,6 @@
  (legacy_install)
  (generate_project_file)
  (plugins rocq-elpi-xml.elpi_xml_plugin)
- (theories rocq-elpi.files rocq-elpi))
+ (theories rocq-elpi))
 
 (include_subdirs qualified)

@@ -7,6 +7,7 @@
  (theories
   rocq-elpi
   rocq-elpi.apps.rbuild.files
-  rocq-elpi.apps.derive))
+  rocq-elpi.apps.derive
+  rocq-elpi.apps.coercion))
 
 (include_subdirs qualified)

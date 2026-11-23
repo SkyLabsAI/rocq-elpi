@@ -4,6 +4,9 @@
  (package myExtension-tests)
   ; the tests folder depends on ext
  (generate_project_file)
- (theories rocq-elpi.files rocq-elpi myExtension myExtension.lib))
+ (theories
+  rocq-elpi
+  myExtension
+  myExtension.lib))
 
 (include_subdirs qualified)

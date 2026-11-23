@@ -3,6 +3,6 @@
  (public_name rocq-elpi-tests.apps.coercion)
  (package rocq-elpi-tests)
  (generate_project_file)
- (theories rocq-elpi rocq-elpi.apps.coercion))
+ (theories rocq-elpi.apps.coercion))
 
 (include_subdirs qualified)

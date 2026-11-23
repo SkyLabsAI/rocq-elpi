@@ -1,6 +1,8 @@
 (rocq.theory
  (name elpi.apps.rbuild.examples)
  (generate_project_file)
- (theories rocq-elpi rocq-elpi.apps.rbuild rocq-elpi.apps.derive))
+ (theories
+  rocq-elpi.apps.rbuild
+  rocq-elpi.apps.derive))
 
 (include_subdirs qualified)

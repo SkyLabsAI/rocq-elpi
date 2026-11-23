@@ -4,7 +4,9 @@
  (name myExtension)
  (public_name myExtension)
   ; these are the dependencies of the current package
- (theories rocq-elpi.files rocq-elpi myExtension.lib)
+ (theories
+  rocq-elpi
+  myExtension.lib)
   ; the rocq files in this folder (theories)
   ; will use the pluging called ext.plug
   ; the rocq files in this folder use the pluging defined in src/

@@ -4,7 +4,7 @@
  (package rocq-elpi)
  (legacy_install)
  (generate_project_file)
- (theories rocq-elpi rocq-elpi.apps.coercion))
+)
 
 (rule
  (target dummy.v)
